@@ -76,20 +76,19 @@
     </div>
   </header>
 
-  <!-- ============================ MESSAGGI ============================ -->
-  <template x-if="errore">
-    <div class="mx-auto w-full max-w-5xl px-3 pt-3 sm:px-4">
-      <div class="flex items-start gap-2 rounded-lg border border-red/40 bg-red/10 px-3 py-2 text-sm text-red">
-        <span class="flex-1" x-text="errore"></span>
-        <button @click="errore = null" class="shrink-0 opacity-60 hover:opacity-100">✕</button>
-      </div>
+  <!-- ============================= TOAST ============================= -->
+  <!-- Floating: non sposta il layout quando appare/scompare (no click
+       involontari). Il contenitore è pass-through; i toast cliccabili. -->
+  <div class="pointer-events-none fixed inset-x-0 top-[3.9rem] z-50 flex flex-col items-center gap-2 px-3 sm:top-16">
+    <div x-show="messaggio" x-transition.opacity.duration.250ms x-cloak
+         class="pointer-events-auto max-w-md rounded-full border border-green/40 bg-green/15 px-4 py-2 text-center text-sm text-green shadow-lg backdrop-blur"
+         x-text="messaggio"></div>
+    <div x-show="errore" x-transition.opacity.duration.250ms x-cloak
+         class="pointer-events-auto flex max-w-md items-start gap-2 rounded-full border border-red/40 bg-red/15 px-4 py-2 text-sm text-red shadow-lg backdrop-blur">
+      <span class="flex-1" x-text="errore"></span>
+      <button @click="errore = null" class="shrink-0 opacity-60 hover:opacity-100" aria-label="Chiudi">✕</button>
     </div>
-  </template>
-  <template x-if="messaggio">
-    <div class="mx-auto w-full max-w-5xl px-3 pt-3 sm:px-4">
-      <div class="rounded-lg border border-green/40 bg-green/10 px-3 py-2 text-sm text-green" x-text="messaggio"></div>
-    </div>
-  </template>
+  </div>
 
   <!-- ============================== WIZARD ============================= -->
   <template x-if="!correnteId || wizardAperto">
