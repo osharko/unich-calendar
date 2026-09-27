@@ -50,7 +50,7 @@ function unichApp() {
     lezioni: [],              // solo del calendario corrente
     da: null, a: null,
     vista: 'settimana',
-    giorniVisibili: 7,
+    giorniVisibili: 5,
     menuVista: false,   // dropdown custom Orizzontale/Mese
     menuGiorni: false,  // dropdown custom 1/3/5/7 giorni
     dataRif: new Date(),
@@ -69,7 +69,8 @@ function unichApp() {
     async init() {
       const stato = store.getStato();
       this.vista = stato.vista || 'settimana';
-      this.giorniVisibili = stato.giorniVisibili ?? (window.innerWidth >= 900 ? 7 : 3);
+      // Default 5 giorni; una scelta esplicita dell'utente (dropdown) prevale.
+      this.giorniVisibili = stato.giorniVisibili ?? 5;
       this.nascondiAnnullati = stato.nascondiAnnullati ?? true;
       this.selezioni = (stato.selezioni || []).map((s) => ({ ...s, materieVisibili: s.materieVisibili ?? null }));
       this.correnteId = stato.correnteId || this.selezioni[0]?.linkCalendarioId || null;
