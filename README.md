@@ -31,7 +31,18 @@ in `worker/worker.js` e le istruzioni in `worker/README.md`:
 1. Cloudflare → Workers & Pages → Create Worker → incolla `worker/worker.js` → Deploy.
 2. In `js/config.js` imposta `workerBase: 'https://unich-proxy.<tuo>.workers.dev'`.
 
-Senza Worker, l'app usa di riserva il proxy pubblico `r.jina.ai`.
+Senza Worker, l'app usa di riserva il proxy pubblico `r.jina.ai`
+(serve l'header `X-Return-Format: html`, già gestito in `js/config.js`).
+
+## Test automatici (Lightpanda)
+
+Verifica end-to-end con browser headless (esegue JS/DOM/rete, non il CSS):
+
+```bash
+python3 -m http.server 8123 &
+podman run -d --name lp --net=host docker.io/lightpanda/browser:latest
+node scripts/test-lightpanda.mjs
+```
 
 ## Stack
 

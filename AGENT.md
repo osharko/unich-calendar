@@ -289,14 +289,30 @@ come sfondo/striscia, non come lezioni.
 
 ## 4. Design
 
-- **Tema**: Catppuccin via variabili CSS (`--ctp-*`) in `css/app.css`, usate come
-  design token Tailwind (`@theme`). Niente colori hardcoded nei componenti.
-  Latte (chiaro) / Mocha (scuro) con switch e preferenza di sistema.
-- **Layout**: griglia CSS. Su mobile: ore in colonna stretta a sinistra, giorni
-  in orizzontale (scroll), blocchi lezione posizionati con `grid-row` proporzionale
-  alla durata e `grid-column` = giorno.
-- **Colori lezione**: palette a 8 tinte Catppuccin assegnate in modo stabile
-  tramite hash dell'insegnamento.
+- **Tema**: Catppuccin via variabili CSS (`--ctp-*`): Latte (chiaro) / Mocha /
+  Macchiato, switch + preferenza di sistema. Niente colori hardcoded nei componenti.
+- **Layout**: griglia CSS `.timetable-grid` con colonne `minmax(82px,1fr)` su
+  mobile e nessuna minima su desktop; scala ore `sticky` a sinistra.
+  Selettore 1/3/5/7 giorni (default: 3 mobile, 7 desktop).
+- **Colori materia**: palette **fissa di 50 colori** (`--mat-0..49`) generata una
+  volta da `scripts/gen-palette.py` (hue distribuito + alternanza luminosità,
+  distanza RGB minima verificata ~19). L'indice è un **hash FNV-1a** della materia
+  con linear probing anti-collisione: stabile anche cambiando i calendari.
+  Ogni materia mostra il suo pallino nella lista; la legenda riporta solo le
+  materie visibili.
+
+## Test con browser headless (Lightpanda)
+
+Lightpanda (`docker.io/lightpanda/browser`) **non rende CSS/visuali**, ma esegue
+JS e DOM reali con fetch di rete: ottimo per verifica end-to-end della logica.
+
+```bash
+python3 -m http.server 8123 &
+podman run -d --name lp --net=host docker.io/lightpanda/browser:latest
+node scripts/test-lightpanda.mjs   # 10 asserzioni: wizard→lezioni→materie→vista
+```
+
+Per la verifica visiva usare un browser reale.
 
 ---
 
@@ -352,6 +368,9 @@ python3 -m http.server 8000     # serve la root del repo
 - [x] Selezione materie da visualizzare
 - [x] Vista timetable responsive (1/3/5/7 giorni) + tema Catppuccin
 - [x] Export `.ics`
+- [x] Palette fissa 50 colori materia (scripts/gen-palette.py) + pallini in UI
+- [x] Test E2E con Lightpanda (scripts/test-lightpanda.mjs)
+- [x] Repo GitHub + deploy Pages (branch main /)
 - [ ] Filtri aggiuntivi (docente, aula) e ricerca nel calendario
 - [ ] Feed/sync calendario di sistema
 - [ ] Test su corsi/anni diversi (requisito 3)
