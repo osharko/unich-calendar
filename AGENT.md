@@ -175,18 +175,25 @@ Esempio pagina corso (`.../l-19-l-5-filosofia-e-scienze`):
 regola di sicurezza del browser e **non si può aggirare dal FE**. (Con `curl` da
 terminale funziona perché `curl` non applica la same-origin policy.)
 
-**Soluzione adottata: proxy di lettura con CORS aperto — `r.jina.ai`.**
+**Soluzione: Cloudflare Worker proxy** (deployato e attivo):
+`https://unich-proxy.unich.workers.dev`
 
 ```js
-fetch("https://r.jina.ai/https://www.unich.it/didattica/frequentare/calendario-lezioni", {
-  headers: { "X-Return-Format": "html" }   // restituisce l'HTML grezzo, parsabile
-});
+// L'app chiede: GET <worker>/?url=<url-unich-codificata>
+fetch("https://unich-proxy.unich.workers.dev/?url=" +
+      encodeURIComponent("https://www.unich.it/didattica/frequentare/calendario-lezioni"));
 ```
 
-Verificato:
-- Preflight `OPTIONS` OK, `access-control-allow-origin: <origin>`, header custom permessi.
-- Limite: **~20 richieste/minuto** (`x-ratelimit-limit: 20;w=60`).
-- Restituisce l'HTML originale → il parsing è identico a quello da `curl`.
+Il Worker (codice in `worker/worker.js`, deploy in `worker/README.md`):
+- scarica la pagina lato server (dove CORS non si applica) e la re-invia con
+  `access-control-allow-origin: *` e cache edge 1h;
+- ha un'**allowlist** di soli domini `unich.it`, quindi non è un proxy aperto;
+- è configurato in `js/config.js` → `CONFIG.workerBase` (vuoto = scraping
+  disabilitato: l'app mostra un errore, non c'è più alcun fallback esterno).
+
+Verificato dopo il deploy (2026-09-27): HTTP 200 + header CORS su GET e
+preflight `OPTIONS`; `example.com` respinto con 403; pagine indice/corso
+restituiscono l'HTML originale (parsing identico a `curl`).
 
 Lo **scraper gira quindi a runtime nel browser** (`js/scraper.js`) ed è **lazy**:
 
@@ -200,21 +207,6 @@ Lo **scraper gira quindi a runtime nel browser** (`js/scraper.js`) ed è **lazy*
 Configurare un corso costa quindi **2 richieste**, non una per tutti i 77 corsi.
 I risultati (indice e anni per corso) sono salvati in `localStorage`, quindi i
 riaccessi sono gratuiti. Il tasto **"Aggiorna elenco"** ripete lo scraping.
-
-#### Proxy: Cloudflare Worker (consigliato)
-
-Il modo robusto è un **Cloudflare Worker** gratuito che fa da ponte CORS
-(codice in `worker/worker.js`, istruzioni in `worker/README.md`):
-
-```bash
-# dashboard: Workers & Pages → Create Worker → incolla worker/worker.js → Deploy
-# poi in js/config.js:
-workerBase: 'https://unich-proxy.<tuo>.workers.dev'
-```
-
-Il Worker usa un'**allowlist** (solo `unich.it`), quindi non è un proxy aperto.
-Se `workerBase` è vuoto, l'app ricade su `r.jina.ai` (proxy di lettura pubblico,
-limite ~20 req/min) — vedi `CONFIG.proxy` in `js/config.js`.
 
 #### Note sugli anni
 
@@ -391,7 +383,7 @@ python3 -m http.server 8000     # serve la root del repo
 ## 6. Roadmap
 
 - [x] Analisi API Cineca + vincolo CORS
-- [x] Cloudflare Worker proxy (`worker/worker.js`) + fallback r.jina.ai
+- [x] Cloudflare Worker proxy (`worker/worker.js`), deployato su unich-proxy.unich.workers.dev
 - [x] Scraper indice + anni corso, lazy
 - [x] Client API + normalizzazione + cache
 - [x] Wizard a step (Polo → Dipartimento → Corso → Anno)

@@ -12,8 +12,7 @@ con gli header CORS corretti.
 4. In `js/config.js` imposta:
 
    ```js
-   proxy: (url) => `https://unich-proxy.<tuo-sottodominio>.workers.dev/?url=${encodeURIComponent(url)}`,
-   proxyHeaders: {},
+   workerBase: 'https://unich-proxy.<tuo-sottodominio>.workers.dev',
    ```
 
 ## Deploy con Wrangler (CLI)

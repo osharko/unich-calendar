@@ -31,7 +31,7 @@ async function fetchPagina(url) {
 
   for (let tentativo = 1; tentativo <= CONFIG.proxyMaxRetry; tentativo++) {
     try {
-      const res = await fetch(endpoint, { headers: CONFIG.proxyHeaders() });
+      const res = await fetch(endpoint);
       if (res.status === 429 || res.status === 503) {
         await sleep(1500 * tentativo * tentativo);
         throw new Error(`rate limit (HTTP ${res.status})`);

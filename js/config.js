@@ -14,19 +14,13 @@ const CONFIG = {
   // Sorgente della gerarchia (scraping via proxy)
   catalogoUrl: 'https://www.unich.it/didattica/frequentare/calendario-lezioni',
 
-  // Proxy CORS. Consigliato: Cloudflare Worker (vedi worker/).
-  //   1. deploya worker/worker.js (gratis) → ottieni https://unich-proxy.<tuo>.workers.dev
-  //   2. incolla l'URL qui sotto.
-  // Senza Worker si usa r.jina.ai, che di default restituisce markdown:
-  // serve l'header X-Return-Format per avere l'HTML grezzo.
-  workerBase: '', // es. 'https://unich-proxy.mionome.workers.dev'
-  proxy: (url) =>
-    CONFIG.workerBase
-      ? `${CONFIG.workerBase}/?url=${encodeURIComponent(url)}`
-      : `https://r.jina.ai/${url}`, // fallback di lettura
-  proxyHeaders: () =>
-    CONFIG.workerBase ? {} : { 'X-Return-Format': 'html' },
-  // Ritardo tra le richieste al proxy (rate limit del fallback r.jina.ai).
+  // Proxy CORS: Cloudflare Worker (codice in worker/worker.js, deploy nelle note).
+  // www.unich.it non invia header CORS → il Worker fa da ponte (allowlist unich.it).
+  //   GET <workerBase>/?url=<url codificata>
+  workerBase: 'https://unich-proxy.unich.workers.dev',
+  proxy: (url) => `${CONFIG.workerBase}/?url=${encodeURIComponent(url)}`,
+
+  // Ritardo tra le richieste al proxy (comunque < rate limit del Worker).
   proxyDelayMs: 3200,
   proxyMaxRetry: 3,
 

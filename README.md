@@ -48,15 +48,17 @@ node scripts/test-lightpanda.mjs
 
 ## Proxy CORS (Cloudflare Worker)
 
-`www.unich.it` non invia header CORS, quindi il browser non può scaricarne le pagine.
-Serve un piccolo **Cloudflare Worker** che fa da ponte (piano gratuito). Il codice è
-in `worker/worker.js` e le istruzioni in `worker/README.md`:
+`www.unich.it` non invia header CORS, quindi il browser non può scaricarne le
+pagine. Lo scraping passa da un **Cloudflare Worker** gratuito che fa da ponte
+(allowlist: solo domini unich.it). **Attivo e configurato**:
 
-1. Cloudflare → Workers & Pages → Create Worker → incolla `worker/worker.js` → Deploy.
-2. In `js/config.js` imposta `workerBase: 'https://unich-proxy.<tuo>.workers.dev'`.
+```
+https://unich-proxy.unich.workers.dev   (in js/config.js → CONFIG.workerBase)
+```
 
-Senza Worker, l'app usa di riserva il proxy pubblico `r.jina.ai`
-(serve l'header `X-Return-Format: html`, già gestito in `js/config.js`).
+Per rifarlo da zero (o su un altro account): incolla `worker/worker.js` in un
+nuovo Worker e aggiorna `workerBase` — istruzioni in `worker/README.md`.
+Se `workerBase` è vuoto lo scraping è disabilitato (nessun fallback esterno).
 
 ## Deploy: GitHub Pages o Cloudflare Pages (indifferenti)
 
@@ -116,5 +118,5 @@ Tutti i percorsi sono relativi, quindi funziona anche in una sottocartella.
 - Progetto **non ufficiale**, non affiliato all'ateneo.
 - I dati provengono da fonti pubbliche (`unich.it` e API Cineca). Potrebbero cambiare
   formato senza preavviso; lo scraper è isolato in `js/scraper.js` per facilitare gli aggiornamenti.
-- Lo scraping passa da un proxy di lettura gratuito con CORS aperto (`r.jina.ai`).
+- Lo scraping passa da un Worker Cloudflare gratuito (allowlist unich.it).
   Se non disponibile, si può sostituire con un Cloudflare Worker (vedi `AGENT.md`).

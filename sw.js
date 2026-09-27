@@ -9,7 +9,7 @@
  *    dall'IndexedDB. NB: recapito garantito AD APP CHIUSA richiederebbe Web Push
  *    da server (Cloudflare Cron): vedi AGENT.md §notifiche.
  */
-const VERSIONE = 'unich-v5';
+const VERSIONE = 'unich-v6';
 const SHELL = [
   './',
   './index.html',
