@@ -26,12 +26,17 @@ export const CONFIG = {
       : `https://r.jina.ai/${url}`, // fallback di lettura
   proxyHeaders: () =>
     CONFIG.workerBase ? {} : { 'X-Return-Format': 'html' },
-  // Il proxy limita a ~20 richieste/minuto: ritardo tra una richiesta e l'altra.
+  // Ritardo tra le richieste al proxy (rate limit del fallback r.jina.ai).
   proxyDelayMs: 3200,
   proxyMaxRetry: 3,
 
-  // Palette per i blocchi lezione (tinte Catppuccin)
-  palette: ['blue', 'mauve', 'green', 'peach', 'teal', 'pink', 'sapphire', 'maroon'],
+  // Numero di colori fissi nella palette materie (--mat-0..N-1, css/app.css),
+  // generati da scripts/gen-palette.mjs con variante light/dark.
+  numColori: 50,
+
+  // Notifiche: promemoria 15 min prima, finestra di programmazione 3 giorni.
+  anticipoNotificaMs: 15 * 60 * 1000,
+  orizzonteNotificheMs: 3 * 24 * 60 * 60 * 1000,
 };
 
 /** Chiavi localStorage, versionate per poter invalidare la cache in futuro. */

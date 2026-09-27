@@ -18,9 +18,30 @@ come **PWA statica** pubblicabile su GitHub Pages. Nessun server, tutto nel brow
 
 1. Apri il sito e premi **⟳ Aggiorna elenco** (solo la prima volta: i dati restano salvati).
 2. Segui il wizard: Polo → Dipartimento/Scuola → Corso → Anno.
-3. Nel calendario usa **Materie** per scegliere gli insegnamenti da vedere; con il
-   selettore 1/3/5/7 giorni adatti la vista allo schermo. Il pulsante **⟳** aggiorna
-   le lezioni; **.ics** esporta gli eventi per il calendario di sistema.
+3. **Materie**: clicca i pill sopra la griglia per mostrare/nascondere gli
+   insegnamenti (il colore del pallino è quello dei blocchi in calendario).
+4. Il **titolo in alto** è il calendario corrente: cliccalo per cambiare anno,
+   rimuoverlo o aggiungere un altro corso.
+5. **🔔** attiva i promemoria 15 minuti prima della lezione (funziona mentre
+   l'app è aperta/SW vivo; per il recapito ad app chiusa serve push da server,
+   vedi AGENT.md §notifiche). **☀/☾** cambia tema; **⟳** aggiorna le lezioni.
+
+## Servire in locale (senza python)
+
+Il progetto sono file statici puri: nessun build step obbligatorio, nessun runtime.
+
+```bash
+node scripts/serve.mjs 8080      # server statico zero-dipendenze
+# oppure qualsiasi cosa: nginx, caddy, php -S, `npx serve`, …
+```
+
+Test E2E headless (JS/DOM/rete reali; il CSS non viene renderizzato):
+
+```bash
+node scripts/serve.mjs 8123 &
+podman run -d --name lp --net=host docker.io/lightpanda/browser:latest
+node scripts/test-lightpanda.mjs
+```
 
 ## Proxy CORS (Cloudflare Worker)
 
@@ -33,6 +54,19 @@ in `worker/worker.js` e le istruzioni in `worker/README.md`:
 
 Senza Worker, l'app usa di riserva il proxy pubblico `r.jina.ai`
 (serve l'header `X-Return-Format: html`, già gestito in `js/config.js`).
+
+## Deploy: GitHub Pages o Cloudflare Pages (indifferenti)
+
+Entrambi vanno bene, sono **statici puri** (nessuna build):
+
+- **GitHub Pages**: Settings → Pages → branch `main` / (root). Zero config.
+- **Cloudflare Pages** (consigliato se usi già il Worker): collega il repo,
+  *Build command* vuoto, *Output* `/`. In più: dominio tuo, HTTPS, preview per
+  branch e deploy automatici. Stesso account del proxy → tutto in un posto.
+
+Non serve affatto Pages: anche un Worker statico di Cloudflare o un S3 bucket
+funzionerebbero. L'unica cosa che conta è che il **service worker** richieda HTTPS
+(entrambi lo danno) e che `sw.js` resti alla root.
 
 ## Test automatici (Lightpanda)
 

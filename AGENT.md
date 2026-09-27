@@ -294,12 +294,27 @@ come sfondo/striscia, non come lezioni.
 - **Layout**: griglia CSS `.timetable-grid` con colonne `minmax(82px,1fr)` su
   mobile e nessuna minima su desktop; scala ore `sticky` a sinistra.
   Selettore 1/3/5/7 giorni (default: 3 mobile, 7 desktop).
-- **Colori materia**: palette **fissa di 50 colori** (`--mat-0..49`) generata una
-  volta da `scripts/gen-palette.py` (hue distribuito + alternanza luminosità,
-  distanza RGB minima verificata ~19). L'indice è un **hash FNV-1a** della materia
-  con linear probing anti-collisione: stabile anche cambiando i calendari.
-  Ogni materia mostra il suo pallino nella lista; la legenda riporta solo le
-  materie visibili.
+- **Colori materia**: palette **fissa di 50 colori** (`--mat-0..49`) generata da
+  `scripts/gen-palette.mjs` in DUE varianti: set scuro/saturo per il tema chiaro
+  (Latte) e set pastello per i temi scuri (Mocha/Macchiato), stesso ordine di
+  hue. L'indice è un **hash FNV-1a** della materia (nome|anno) con linear probing
+  anti-collisione: stabile anche cambiando calendario. Pill, pallini e blocchi
+  usano sempre `var(--mat-N)`.
+
+### Notifiche (promemoria lezione)
+
+Attuale: **notifiche locali** gestite dal service worker (`sw.js` + `js/notify.js`).
+- Stato `notificheOn` in topbar (🔔/🔕). L'app invia al SW la lista delle lezioni
+  visibili entro ~3 giorni con `postMessage({type:'unich:promemoria', items})`.
+- Il SW programma `setTimeout` a `inizio − 15 min` e persiste la lista in
+  IndexedDB (`unich-notify`) per ricostruire i timer alla riattivazione.
+- **Limiti**: il recapito *garantito ad app chiusa* non è possibile senza push
+  da server: il SW viene terminato e i timer non sopravvivono a lungo.
+- **Upgrade reale (gratis su Cloudflare)**: Worker + **Cron Triggers** (es. ogni
+  15 min) che calcola le lezioni imminenti e invia **Web Push** (VAPID) agli
+  abbonati; il client fa solo `PushManager.subscribe()` e mostra la notifica
+  nell'handler `push`. Con Pages + Worker proxy sullo stesso account, tutto
+  resta in un unico ecosistema gratuito.
 
 ## Test con browser headless (Lightpanda)
 
@@ -366,12 +381,11 @@ python3 -m http.server 8000     # serve la root del repo
 - [x] Client API + normalizzazione + cache
 - [x] Wizard a step (Polo → Dipartimento → Corso → Anno)
 - [x] Selezione materie da visualizzare
-- [x] Vista timetable responsive (1/3/5/7 giorni) + tema Catppuccin
-- [x] Export `.ics`
-- [x] Palette fissa 50 colori materia (scripts/gen-palette.py) + pallini in UI
-- [x] Test E2E con Lightpanda (scripts/test-lightpanda.mjs)
-- [x] Repo GitHub + deploy Pages (branch main /)
+- [x] Palette fissa 50 colori materia (scripts/gen-palette.mjs) con varianti light/dark
+- [x] Test E2E con Lightpanda (scripts/test-lightpanda.mjs, 13 asserzioni)
+- [x] Repo GitHub + deploy Pages (branch main /) o Cloudflare Pages
+- [x] Notifiche locali (timer SW, 15 min prima, toggle in topbar)
+- [ ] Web Push reali via Cloudflare Cron + VAPID (recapito ad app chiusa)
 - [ ] Filtri aggiuntivi (docente, aula) e ricerca nel calendario
-- [ ] Feed/sync calendario di sistema
 - [ ] Test su corsi/anni diversi (requisito 3)
 - [ ] Install prompt PWA e rifiniture accessibilità (ARIA, tastiera)

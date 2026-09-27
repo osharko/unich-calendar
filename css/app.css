@@ -129,8 +129,61 @@
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
-/* --- Palette materie (50 colori fissi, generati da scripts/gen-palette.py) --- */
+/* --- Palette materie (50 colori fissi, light+dark)
+   Generata da scripts/gen-palette.mjs: NON aggiungere colori a runtime. --- */
 :root {
+  --mat-0: #55119c;
+  --mat-1: #29ae43;
+  --mat-2: #8e0b18;
+  --mat-3: #1b51a7;
+  --mat-4: #8eb931;
+  --mat-5: #9c1198;
+  --mat-6: #29ae8b;
+  --mat-7: #8e450b;
+  --mat-8: #311ba7;
+  --mat-9: #44b931;
+  --mat-10: #9c114d;
+  --mat-11: #2989ae;
+  --mat-12: #8e8c0b;
+  --mat-13: #7c1ba7;
+  --mat-14: #31b968;
+  --mat-15: #9c2111;
+  --mat-16: #2941ae;
+  --mat-17: #498e0b;
+  --mat-18: #a71b86;
+  --mat-19: #31b9b2;
+  --mat-20: #9c6c11;
+  --mat-21: #5929ae;
+  --mat-22: #0b8e14;
+  --mat-23: #a71b3a;
+  --mat-24: #3177b9;
+  --mat-25: #819c11;
+  --mat-26: #a029ae;
+  --mat-27: #0b8e5b;
+  --mat-28: #a7471b;
+  --mat-29: #3531b9;
+  --mat-30: #369c11;
+  --mat-31: #ae2973;
+  --mat-32: #0b7a8e;
+  --mat-33: #a7931b;
+  --mat-34: #7e31b9;
+  --mat-35: #119c38;
+  --mat-36: #ae292b;
+  --mat-37: #0b348e;
+  --mat-38: #6fa71b;
+  --mat-39: #b931ab;
+  --mat-40: #119c83;
+  --mat-41: #ae6e29;
+  --mat-42: #2a0b8e;
+  --mat-43: #23a71b;
+  --mat-44: #b93161;
+  --mat-45: #116a9c;
+  --mat-46: #a5ae29;
+  --mat-47: #700b8e;
+  --mat-48: #1ba75e;
+  --mat-49: #b94b31;
+}
+:root[data-theme="mocha"], :root[data-theme="macchiato"] {
   --mat-0: #9d5fdd;
   --mat-1: #94dba2;
   --mat-2: #e23647;

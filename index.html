@@ -17,33 +17,61 @@
 <div x-data="unichApp()" x-init="init()" x-cloak class="flex min-h-dvh flex-col">
 
   <!-- ============================= HEADER ============================= -->
-  <header class="sticky top-0 z-30 border-b border-surface0 bg-mantle/95 backdrop-blur">
+  <header class="sticky top-0 z-30 border-b border-surface0 bg-mantle/95 text-text backdrop-blur">
     <div class="mx-auto flex w-full max-w-5xl items-center gap-2 px-3 py-2.5 sm:px-4 sm:py-3">
-      <h1 class="flex items-center gap-2 text-base font-semibold sm:text-lg">
-        <span class="text-mauve">◒</span>
-        <span class="hidden sm:inline">Calendario Lezioni · Ud'A</span>
-        <span class="sm:hidden">Lezioni Ud'A</span>
-      </h1>
 
-      <div class="ml-auto flex items-center gap-1">
-        <template x-if="selezioni.length && !mostraMaterie">
-          <button @click="mostraMaterie = true" title="Scegli le materie da vedere"
-                  class="rounded-md border border-surface1 px-2.5 py-1.5 text-xs text-subtext1 hover:bg-surface0">
-            Materie
-          </button>
-        </template>
-        <button @click="esportaIcs()" x-show="selezioni.length" title="Esporta .ics"
-                class="rounded-md border border-surface1 px-2.5 py-1.5 text-xs text-subtext1 hover:bg-surface0">.ics</button>
-        <button @click="applicaTema(tema === 'latte' ? 'mocha' : tema === 'mocha' ? 'auto' : 'latte')"
-                :title="'Tema: ' + tema"
-                class="rounded-md border border-surface1 px-2.5 py-1.5 text-xs text-subtext1 hover:bg-surface0"
-                x-text="tema === 'latte' ? '☀' : tema === 'mocha' ? '☾' : '◐'"></button>
-        <button @click="aggiornaLezioni()" x-show="selezioni.length" title="Aggiorna le lezioni"
-                class="rounded-md border border-surface1 px-2.5 py-1.5 text-xs text-subtext1 hover:bg-surface0">⟳</button>
-        <button @click="mostraMaterie = false; apriWizard()" title="Aggiungi corsi"
-                class="rounded-md bg-mauve px-3 py-1.5 text-xs font-medium text-crust hover:opacity-90">
-          Corsi <span x-show="selezioni.length" x-text="'(' + selezioni.length + ')'"></span>
+      <!-- Titolo = calendario corrente, cliccabile con menu a tendina -->
+      <div class="relative min-w-0" @click.outside="menuCalendari = false">
+        <button @click="selezioni.length ? menuCalendari = !menuCalendari : apriWizard()"
+                class="flex max-w-[52vw] items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm font-semibold text-text hover:bg-surface0 sm:max-w-md sm:text-base">
+          <span class="shrink-0 text-mauve">◒</span>
+          <span class="truncate" x-text="corrente ? `${corrente.corso} · ${corrente.etichetta}` : 'Calendario Lezioni'"></span>
+          <span x-show="selezioni.length" class="shrink-0 text-xs text-subtext0">▾</span>
         </button>
+
+        <!-- Dropdown: cambio anno, gestione, nuovo corso -->
+        <div x-show="menuCalendari" x-transition.opacity
+             class="absolute left-0 top-full z-40 mt-1 w-72 overflow-hidden rounded-xl border border-surface1 bg-base shadow-xl">
+          <p class="border-b border-surface0 px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-subtext0">I tuoi calendari</p>
+          <ul class="max-h-64 overflow-y-auto">
+            <template x-for="s in selezioni" :key="s.linkCalendarioId">
+              <li class="flex items-center gap-2 px-1">
+                <button @click="usaCalendario(s.linkCalendarioId)"
+                        class="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-2 text-left text-sm hover:bg-surface0">
+                  <span class="w-4 shrink-0 text-mauve" x-text="s.linkCalendarioId === correnteId ? '✓' : ''"></span>
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate" x-text="s.corso"></span>
+                    <span class="block text-xs text-subtext0" x-text="s.etichetta"></span>
+                  </span>
+                </button>
+                <button @click="rimuoviCalendario(s.linkCalendarioId)"
+                        class="mr-1 shrink-0 rounded px-1.5 py-1 text-xs text-red hover:bg-surface0"
+                        title="Rimuovi">✕</button>
+              </li>
+            </template>
+          </ul>
+          <button @click="apriWizard()"
+                  class="w-full border-t border-surface0 bg-mantle px-3 py-2.5 text-left text-sm text-mauve hover:bg-surface0">
+            ＋ Aggiungi un corso…
+          </button>
+        </div>
+      </div>
+
+      <!-- Azioni -->
+      <div class="ml-auto flex shrink-0 items-center gap-1">
+        <!-- Notifiche -->
+        <button @click="toggleNotifiche()" :title="titleNotifiche"
+                class="rounded-md border px-2.5 py-1.5 text-xs transition"
+                :class="notificheOn ? 'border-mauve bg-mauve/15 text-mauve' : 'border-surface1 text-subtext1 hover:bg-surface0'">
+          <span x-text="notificheOn ? '🔔' : '🔕'"></span>
+        </button>
+        <!-- Tema: 2 stati, default = sistema -->
+        <button @click="toggleTema()" :title="temaEChi ? 'Passa al scuro' : 'Passa al chiaro'"
+                class="rounded-md border border-surface1 px-2.5 py-1.5 text-xs text-subtext1 hover:bg-surface0"
+                x-text="temaEChi ? '☀' : '☾'"></button>
+        <!-- Aggiorna lezioni -->
+        <button @click="aggiornaLezioni()" x-show="correnteId" title="Aggiorna le lezioni"
+                class="rounded-md border border-surface1 px-2.5 py-1.5 text-xs text-subtext1 hover:bg-surface0">⟳</button>
       </div>
     </div>
   </header>
@@ -51,7 +79,10 @@
   <!-- ============================ MESSAGGI ============================ -->
   <template x-if="errore">
     <div class="mx-auto w-full max-w-5xl px-3 pt-3 sm:px-4">
-      <div class="rounded-lg border border-red/40 bg-red/10 px-3 py-2 text-sm text-red" x-text="errore"></div>
+      <div class="flex items-start gap-2 rounded-lg border border-red/40 bg-red/10 px-3 py-2 text-sm text-red">
+        <span class="flex-1" x-text="errore"></span>
+        <button @click="errore = null" class="shrink-0 opacity-60 hover:opacity-100">✕</button>
+      </div>
     </div>
   </template>
   <template x-if="messaggio">
@@ -61,12 +92,12 @@
   </template>
 
   <!-- ============================== WIZARD ============================= -->
-  <template x-if="!selezioni.length || wizardAperto">
+  <template x-if="!correnteId || wizardAperto">
     <section class="mx-auto w-full max-w-5xl flex-1 px-3 py-4 sm:px-4 sm:py-5">
-
-      <!-- Intestazione + stato indice -->
       <div class="mb-4 flex flex-wrap items-center gap-2">
         <h2 class="text-base font-semibold">Scegli i tuoi corsi</h2>
+        <button x-show="correnteId && wizardAperto" @click="chiudiWizard()"
+                class="rounded-md border border-surface1 px-3 py-1.5 text-xs hover:bg-surface0">‹ Torna al calendario</button>
         <span class="text-xs text-subtext0" x-show="indice"
               x-text="indice ? `${stats.corsi} corsi · agg. ${formattaData(indice.generatoIl)}` : ''"></span>
         <button @click="aggiornaIndice()" :disabled="scraping"
@@ -76,7 +107,6 @@
         </button>
       </div>
 
-      <!-- Senza indice -->
       <template x-if="!indice && !scraping">
         <div class="rounded-xl border border-surface0 bg-mantle p-5 text-sm text-subtext0">
           Al primo accesso serve scaricare l'elenco dei corsi dal sito dell'ateneo
@@ -88,9 +118,7 @@
         <div class="overflow-hidden rounded-xl border border-surface0 bg-mantle">
 
           <!-- Breadcrumb -->
-          <nav class="flex items-center gap-1 border-b border-surface0 px-3 py-2 text-xs">
-            <button @click="indietro()" x-show="schermata !== 'polo'"
-                    class="mr-1 rounded-md px-2 py-1 text-subtext1 hover:bg-surface0">‹ Indietro</button>
+          <nav class="flex items-center gap-1 overflow-x-auto border-b border-surface0 px-3 py-2 text-xs whitespace-nowrap">
             <template x-for="(b, i) in [
               {n:'Polo', s:'polo', v:poloScelto},
               {n:'Dipartimento', s:'struttura', v:strutturaScelta},
@@ -98,64 +126,58 @@
               {n:'Anno', s:'anni', v:null},
             ]" :key="b.s">
               <button @click="vaiA(b.s)"
-                      class="truncate rounded px-1.5 py-1 hover:bg-surface0"
+                      class="rounded px-1.5 py-1 hover:bg-surface0"
                       :class="schermata === b.s ? 'font-semibold text-mauve' : (b.v ? 'text-subtext1' : 'text-overlay0')"
                       x-text="b.v ? b.v : b.n"></button>
               <span x-show="i < 3" class="text-overlay0">›</span>
             </template>
           </nav>
 
-          <!-- --- STEP 1: POLO --- -->
+          <!-- STEP POLO -->
           <div x-show="schermata === 'polo'" class="p-3 sm:p-4">
             <ul class="grid gap-2 sm:grid-cols-2">
               <template x-for="p in poli" :key="p.nome">
-                <li>
-                  <button @click="scegliPolo(p.nome)"
-                          class="flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left text-sm transition"
-                          :class="poloScelto === p.nome ? 'border-mauve bg-mauve/10' : 'border-surface0 hover:bg-surface0/60'">
-                    <span x-text="p.nome"></span>
-                    <span class="text-xs text-subtext0" x-text="p.strutture.length + ' dip.'"></span>
-                  </button>
-                </li>
+                <li><button @click="scegliPolo(p.nome)"
+                      class="flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left text-sm hover:bg-surface0/60"
+                      :class="poloScelto === p.nome ? 'border-mauve bg-mauve/10' : 'border-surface0'">
+                  <span x-text="p.nome"></span>
+                  <span class="text-xs text-subtext0" x-text="p.strutture.length + ' dip.'"></span>
+                </button></li>
               </template>
             </ul>
           </div>
 
-          <!-- --- STEP 2: DIPARTIMENTO --- -->
+          <!-- STEP DIPARTIMENTO -->
           <div x-show="schermata === 'struttura'" class="p-3 sm:p-4">
             <ul class="grid gap-2 sm:grid-cols-2">
               <template x-for="s in strutture" :key="s.nome">
-                <li>
-                  <button @click="scegliStruttura(s.nome)"
-                          class="flex w-full items-center justify-between gap-2 rounded-lg border px-4 py-3 text-left text-sm transition"
-                          :class="strutturaScelta === s.nome ? 'border-mauve bg-mauve/10' : 'border-surface0 hover:bg-surface0/60'">
-                    <span x-text="s.nome"></span>
-                    <span class="shrink-0 text-xs text-subtext0" x-text="s.corsi.length"></span>
-                  </button>
-                </li>
+                <li><button @click="scegliStruttura(s.nome)"
+                      class="flex w-full items-center justify-between gap-2 rounded-lg border px-4 py-3 text-left text-sm hover:bg-surface0/60"
+                      :class="strutturaScelta === s.nome ? 'border-mauve bg-mauve/10' : 'border-surface0'">
+                  <span x-text="s.nome"></span>
+                  <span class="shrink-0 text-xs text-subtext0" x-text="s.corsi.length"></span>
+                </button></li>
               </template>
             </ul>
           </div>
 
-          <!-- --- STEP 3: CORSO --- -->
+          <!-- STEP CORSO -->
           <div x-show="schermata === 'corso'" class="p-3 sm:p-4">
             <input type="search" x-model="ricercaCorso" placeholder="Filtra i corsi…"
                    class="mb-3 w-full rounded-md border border-surface1 bg-base px-3 py-2 text-sm">
             <ul class="grid gap-2 sm:grid-cols-2">
               <template x-for="c in corsiFiltrati" :key="c.url || c.nome">
-                <li>
-                  <button @click="scegliCorso(c)"
-                          class="w-full rounded-lg border px-4 py-3 text-left text-sm transition"
-                          :class="corsoScelto?.nome === c.nome ? 'border-mauve bg-mauve/10' : 'border-surface0 hover:bg-surface0/60'">
-                    <span x-text="c.nome"></span>
-                  </button>
-                </li>
+                <li><button @click="scegliCorso(c)"
+                      class="w-full rounded-lg border px-4 py-3 text-left text-sm hover:bg-surface0/60"
+                      :class="corsoScelto?.nome === c.nome ? 'border-mauve bg-mauve/10' : 'border-surface0'">
+                  <span x-text="c.nome"></span>
+                </button></li>
               </template>
             </ul>
             <p x-show="!corsiFiltrati.length" class="py-4 text-center text-sm text-subtext0">Nessun corso trovato.</p>
           </div>
 
-          <!-- --- STEP 4: ANNO --- -->
+          <!-- STEP ANNO -->
           <div x-show="schermata === 'anni'" class="p-3 sm:p-4">
             <p class="mb-3 text-sm font-medium" x-text="corsoScelto?.nome"></p>
             <p x-show="anniInCaricamento" class="text-sm text-subtext0">Carico gli anni…</p>
@@ -164,94 +186,20 @@
             <div class="flex flex-wrap gap-2">
               <template x-for="cal in (anniDelCorso || [])" :key="cal.linkCalendarioId">
                 <button @click="aggiungiCalendario(cal)"
-                        :disabled="calendarioGiaScelto(cal.linkCalendarioId)"
-                        class="rounded-lg border border-surface1 px-4 py-2.5 text-sm hover:bg-surface0 disabled:opacity-40">
-                  <span x-text="cal.etichetta"></span>
-                  <span x-show="calendarioGiaScelto(cal.linkCalendarioId)" class="ml-1 text-xs">✓</span>
+                        class="rounded-lg border px-4 py-2.5 text-sm hover:bg-surface0"
+                        :class="calendarioGiaScelto(cal.linkCalendarioId) ? 'border-mauve/50 text-mauve' : 'border-surface1'">
+                  <span x-text="calendarioGiaScelto(cal.linkCalendarioId) ? '✓ ' + cal.etichetta : cal.etichetta"></span>
                 </button>
               </template>
             </div>
           </div>
         </div>
       </template>
-
-      <!-- Corsi già scelti -->
-      <template x-if="selezioni.length">
-        <div class="mt-4 rounded-xl border border-surface0 bg-mantle p-4">
-          <div class="mb-2 flex items-center justify-between">
-            <h3 class="text-sm font-semibold">I tuoi calendari</h3>
-            <button @click="apriCalendario()"
-                    class="rounded-md bg-mauve px-3 py-1.5 text-xs font-medium text-crust hover:opacity-90">
-              Vedi calendario
-            </button>
-          </div>
-          <ul class="space-y-1.5">
-            <template x-for="s in selezioni" :key="s.linkCalendarioId">
-              <li class="flex items-center gap-2 text-sm">
-                <input type="checkbox" :checked="s.attivo" @change="toggleSelezione(s.linkCalendarioId)"
-                       class="accent-[var(--ctp-mauve)]">
-                <span class="inline-block h-3 w-3 shrink-0 rounded-sm" :style="`background: var(--ctp-${palette[s.colore % palette.length]})`"></span>
-                <span class="truncate" x-text="s.corso"></span>
-                <span class="shrink-0 text-subtext0" x-text="'· ' + s.etichetta"></span>
-                <button @click="rimuoviCalendario(s.linkCalendarioId)"
-                        class="ml-auto shrink-0 text-xs text-red hover:underline">Rimuovi</button>
-              </li>
-            </template>
-          </ul>
-        </div>
-      </template>
-    </section>
-  </template>
-
-  <!-- ============================ MATERIE ============================ -->
-  <template x-if="mostraMaterie">
-    <section class="mx-auto w-full max-w-5xl flex-1 px-3 py-4 sm:px-4 sm:py-5">
-      <div class="mb-4 flex items-center gap-2">
-        <button @click="mostraMaterie = false" class="rounded-md px-2 py-1 text-sm text-subtext1 hover:bg-surface0">‹ Indietro</button>
-        <h2 class="text-base font-semibold">Materie da visualizzare</h2>
-        <div class="ml-auto flex gap-2">
-          <button @click="tutteMaterie(true)" class="rounded-md border border-surface1 px-2.5 py-1.5 text-xs hover:bg-surface0">Tutte</button>
-          <button @click="tutteMaterie(false)" class="rounded-md border border-surface1 px-2.5 py-1.5 text-xs hover:bg-surface0">Nessuna</button>
-        </div>
-      </div>
-
-      <p class="mb-3 text-xs text-subtext0">
-        Deseleziona le materie che non ti interessano: spariranno dal calendario.
-      </p>
-
-      <template x-for="s in selezioni" :key="s.linkCalendarioId">
-        <div class="mb-4 overflow-hidden rounded-xl border border-surface0 bg-mantle">
-          <div class="flex items-center gap-2 border-b border-surface0 px-3 py-2">
-            <span class="inline-block h-3 w-3 rounded-sm" :style="`background: var(--ctp-${palette[s.colore % palette.length]})`"></span>
-            <span class="text-sm font-medium" x-text="s.corso"></span>
-            <span class="text-xs text-subtext0" x-text="'· ' + s.etichetta"></span>
-          </div>
-          <ul class="divide-y divide-surface0/60">
-            <template x-for="m in materie.filter(x => x.selId === s.linkCalendarioId)" :key="m.id">
-              <li>
-                <label class="flex cursor-pointer items-center gap-3 px-3 py-2.5 text-sm hover:bg-surface0/40">
-                  <input type="checkbox" :checked="m.visibile" @change="toggleMateria(m)"
-                         class="h-4 w-4 shrink-0 accent-[var(--ctp-mauve)]">
-                  <span class="inline-block h-3.5 w-3.5 shrink-0 rounded-full ring-1 ring-inset ring-black/10"
-                        :style="`background: var(--mat-${m.indiceColore % 50})`"></span>
-                  <span class="min-w-0 flex-1">
-                    <span class="block truncate" x-text="m.insegnamento"></span>
-                    <span class="block truncate text-xs text-subtext0"
-                          x-text="[m.annoCorso ? m.annoCorso + '° anno' : null, m.docenti?.join(', ')].filter(Boolean).join(' · ')"></span>
-                  </span>
-                  <span class="shrink-0 text-xs text-overlay0" x-text="m.n + ' lez.'"></span>
-                </label>
-              </li>
-            </template>
-          </ul>
-        </div>
-      </template>
     </section>
   </template>
 
   <!-- ============================ CALENDARIO ============================ -->
-  <main x-show="selezioni.length && !wizardAperto && !mostraMaterie"
-        class="mx-auto w-full max-w-5xl flex-1 px-2 pb-10 sm:px-4">
+  <main x-show="correnteId && !wizardAperto" class="mx-auto w-full max-w-5xl flex-1 px-2 pb-10 sm:px-4">
 
     <!-- Toolbar -->
     <div class="flex flex-wrap items-center gap-2 py-3">
@@ -262,29 +210,43 @@
         <button @click="vai(1)" aria-label="Periodo successivo"
                 class="rounded-md border border-surface1 px-2.5 py-1.5 text-sm hover:bg-surface0">›</button>
       </div>
-
       <span class="text-sm font-medium capitalize" x-text="titoloPeriodo"></span>
-
       <div class="ml-auto flex items-center gap-2">
-        <label class="hidden items-center gap-1 text-xs text-subtext0 md:flex">
-          <input type="checkbox" x-model="nascondiAnnullati" @change="ricalcola()" class="accent-[var(--ctp-mauve)]">
-          nascondi annullate
-        </label>
         <select x-show="vista === 'settimana'" :value="giorniVisibili"
                 @change="cambiaGiorniVisibili($event.target.value)" aria-label="Giorni visibili"
-                class="rounded-md border border-surface1 bg-base px-2 py-1.5 text-xs">
-          <option value="1">1 giorno</option>
-          <option value="3">3 giorni</option>
-          <option value="5">5 giorni</option>
-          <option value="7">Settimana</option>
+                class="rounded-md border border-surface1 bg-base px-2 py-1.5 text-xs text-text">
+          <option value="1">1 giorno</option><option value="3">3 giorni</option>
+          <option value="5">5 giorni</option><option value="7">Settimana</option>
         </select>
         <select x-model="vista" @change="cambiaVista(vista)" aria-label="Vista"
-                class="rounded-md border border-surface1 bg-base px-2 py-1.5 text-xs">
-          <option value="settimana">Orizzontale</option>
-          <option value="mese">Mese</option>
+                class="rounded-md border border-surface1 bg-base px-2 py-1.5 text-xs text-text">
+          <option value="settimana">Orizzontale</option><option value="mese">Mese</option>
         </select>
       </div>
     </div>
+
+    <!-- Pills materie: click = mostra/nascondi -->
+    <template x-if="materie.length">
+      <div class="scrollarea mb-3 flex flex-wrap gap-1.5">
+        <template x-for="m in materie" :key="m.id">
+          <button @click="toggleMateria(m)"
+                  :title="m.visibile ? 'Clicca per nascondere questa materia' : 'Clicca per mostrare'"
+                  class="pill flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition"
+                  :class="m.visibile ? '' : 'opacity-40 grayscale'"
+                  :style="m.visibile
+                    ? `color: var(--mat-${m.indiceColore}); border-color: color-mix(in srgb, var(--mat-${m.indiceColore}) 50%, transparent); background: color-mix(in srgb, var(--mat-${m.indiceColore}) 14%, transparent);`
+                    : `color: var(--ctp-subtext0); border-color: var(--ctp-surface1);`">
+            <span class="inline-block h-2 w-2 rounded-full" :style="`background: var(--mat-${m.indiceColore})`"></span>
+            <span class="max-w-[34ch] truncate" x-text="m.insegnamento"></span>
+            <span class="text-[10px] opacity-70" x-text="m.n"></span>
+          </button>
+        </template>
+        <button x-show="corrente?.materieVisibili !== null" @click="mostraTutteLeMaterie()"
+                class="rounded-full border border-dashed border-surface1 px-2.5 py-1 text-xs text-mauve hover:bg-surface0">
+          mostra tutte
+        </button>
+      </div>
+    </template>
 
     <!-- Niente lezioni -->
     <template x-if="!giorni.some(g => g.lezioni.length)">
@@ -297,37 +259,31 @@
     <!-- Timetable -->
     <template x-if="giorni.some(g => g.lezioni.length)">
       <div class="scrollarea overflow-x-auto rounded-xl border border-surface0 bg-mantle">
-        <div class="timetable p-2" :style="`--giorni:${giorni.length}`" x-ref="griglia">
-          <!-- Intestazione giorni -->
+        <div class="timetable p-2" :style="`--giorni:${giorni.length}`">
           <div class="timetable-grid">
-            <div class="sticky left-0 z-10 bg-mantle"></div>
+            <div></div>
             <template x-for="g in giorni" :key="g.key">
-              <div class="px-0.5 pb-2 text-center text-[11px]"
-                   :class="g.oggi ? 'text-mauve' : 'text-subtext1'">
+              <div class="px-0.5 pb-2 text-center text-[11px]" :class="g.oggi ? 'text-mauve' : 'text-subtext1'">
                 <div x-text="g.nome"></div>
                 <div class="text-sm" :class="g.oggi ? 'font-semibold text-mauve' : 'text-text'" x-text="g.numero"></div>
               </div>
             </template>
           </div>
 
-          <!-- Corpo -->
           <div class="timetable-grid">
-            <!-- Scala ore (fissa mentre si scorre) -->
-            <div class="sticky left-0 z-10 bg-mantle" :style="`height:${(oraMax - oraMin) * altezzaOra}px`">
+            <div class="relative" :style="`height:${(oraMax - oraMin) * altezzaOra}px`">
               <template x-for="h in ore" :key="h">
                 <div class="absolute right-1.5 -translate-y-1/2 text-[10px] text-subtext0"
                      :style="`top:${(h - oraMin) * altezzaOra}px`" x-text="`${String(h).padStart(2,'0')}:00`"></div>
               </template>
             </div>
 
-            <!-- Colonne giorni -->
             <template x-for="g in giorni" :key="g.key">
               <div class="relative border-l border-surface0" :style="`height:${(oraMax - oraMin) * altezzaOra}px`">
                 <template x-for="h in ore" :key="h">
                   <div class="pointer-events-none absolute inset-x-0 border-t border-surface0/60"
                        :style="`top:${(h - oraMin) * altezzaOra}px`"></div>
                 </template>
-
                 <div class="pointer-events-none absolute inset-x-0 top-0 h-full bg-overlay0/10"
                      x-show="indisponibilita.some(x => x.giorno.key === g.key)"></div>
 
@@ -354,16 +310,6 @@
         </div>
       </div>
     </template>
-
-    <!-- Legenda materie visibili, con il loro colore -->
-    <div class="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 text-xs">
-      <template x-for="m in materie.filter(x => x.visibile)" :key="m.id">
-        <span class="flex items-center gap-1.5">
-          <span class="inline-block h-2.5 w-2.5 shrink-0 rounded-full" :style="`background: var(--mat-${m.indiceColore % 50})`"></span>
-          <span class="truncate" x-text="m.insegnamento"></span>
-        </span>
-      </template>
-    </div>
   </main>
 
   <!-- ============================ DETTAGLIO ============================ -->
@@ -397,7 +343,8 @@
 
   <!-- ============================= FOOTER ============================= -->
   <footer class="border-t border-surface0 py-4 text-center text-[11px] text-subtext0">
-    Dati da <span class="text-subtext1">unich.it</span> e dall'API pubblica Cineca · progetto non ufficiale
+    Dati da <span class="text-subtext1">unich.it</span> e dall'API pubblica Cineca ·
+    progetto non ufficiale a cura di <span class="text-mauve">osharko</span>
   </footer>
 </div>
 
@@ -405,6 +352,8 @@
   import { unichApp } from './js/app.js';
   window.unichApp = unichApp;
 
+  // Alpine si avvia da solo con queueMicrotask: caricarlo ora garantisce che
+  // unichApp sia già definito.
   const s = document.createElement('script');
   s.src = './js/vendor/alpine.min.js';
   s.defer = true;

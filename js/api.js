@@ -80,12 +80,8 @@ export const api = {
    per stare nel budget di localStorage.
    ========================================================================== */
 
-/** Hash stabile → indice palette, così una stessa materia ha sempre lo stesso colore. */
-function indiceColore(testo) {
-  let h = 0;
-  for (let i = 0; i < testo.length; i++) h = (h * 31 + testo.charCodeAt(i)) | 0;
-  return Math.abs(h) % CONFIG.palette.length;
-}
+/** Hash stabile (FNV-1a) → ora i colori materia si calcolano in app.js. */
+
 
 export function normalizzaImpegno(i, linkCalendarioId) {
   const evento = i.evento || {};
@@ -149,6 +145,5 @@ export function normalizzaImpegno(i, linkCalendarioId) {
     aule,
     percorso: (i.percorsi || [])[0]?.descrizione || null,
     partizione: i.fattoreDiPartizione?.descrizione || null,
-    colore: indiceColore(insegnamento),
   };
 }
