@@ -1,0 +1,11 @@
+# Dipendenze (nessuna: lo stack è senza build step obbligatorio)
+node_modules/
+
+# Output di test/build temporanei
+*.log
+.DS_Store
+Thumbs.db
+
+# Ambiente
+.env
+.env.local

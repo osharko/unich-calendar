@@ -1,0 +1,235 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Catppuccin theme tokens
+   Palette ufficiale: https://github.com/catppuccin/catppuccin
+   Usiamo variabili CSS come design token; Tailwind v4 le espone via @theme.
+   Nessun colore hardcoded nei componenti: sempre var(--ctp-*).
+   ========================================================================== */
+
+/* --- Catppuccin Latte (light) — default --- */
+:root {
+  --ctp-rosewater: #dc8a78;
+  --ctp-flamingo:  #dd7878;
+  --ctp-pink:      #ea76cb;
+  --ctp-mauve:     #8839ef;
+  --ctp-red:       #d20f39;
+  --ctp-maroon:    #e64553;
+  --ctp-peach:     #fe640b;
+  --ctp-yellow:    #df8e1d;
+  --ctp-green:     #40a02b;
+  --ctp-teal:      #179299;
+  --ctp-sky:       #04a5e5;
+  --ctp-sapphire:  #209fb5;
+  --ctp-blue:      #1e66f5;
+  --ctp-lavender:  #7287fd;
+  --ctp-text:      #4c4f69;
+  --ctp-subtext1:  #5c5f77;
+  --ctp-subtext0:  #6c6f85;
+  --ctp-overlay2:  #7c7f93;
+  --ctp-overlay1:  #8c8fa1;
+  --ctp-overlay0:  #9ca0b0;
+  --ctp-surface2:  #acb0be;
+  --ctp-surface1:  #bcc0cc;
+  --ctp-surface0:  #ccd0da;
+  --ctp-base:      #eff1f5;
+  --ctp-mantle:    #e6e9ef;
+  --ctp-crust:     #dce0e8;
+}
+
+/* --- Catppuccin Mocha (dark) --- */
+:root[data-theme="mocha"] {
+  --ctp-rosewater: #f5e0dc;
+  --ctp-flamingo:  #f2cdcd;
+  --ctp-pink:      #f5c2e7;
+  --ctp-mauve:     #cba6f7;
+  --ctp-red:       #f38ba8;
+  --ctp-maroon:    #eba0ac;
+  --ctp-peach:     #fab387;
+  --ctp-yellow:    #f9e2af;
+  --ctp-green:     #a6e3a1;
+  --ctp-teal:      #94e2d5;
+  --ctp-sky:       #89dceb;
+  --ctp-sapphire:  #74c7ec;
+  --ctp-blue:      #89b4fa;
+  --ctp-lavender:  #b4befe;
+  --ctp-text:      #cdd6f4;
+  --ctp-subtext1:  #bac2de;
+  --ctp-subtext0:  #a6adc8;
+  --ctp-overlay2:  #9399b2;
+  --ctp-overlay1:  #7f849c;
+  --ctp-overlay0:  #6c7086;
+  --ctp-surface2:  #585b70;
+  --ctp-surface1:  #45475a;
+  --ctp-surface0:  #313244;
+  --ctp-base:      #1e1e2e;
+  --ctp-mantle:    #181825;
+  --ctp-crust:     #11111b;
+}
+
+/* --- Catppuccin Macchiato (dark, alternativa) --- */
+:root[data-theme="macchiato"] {
+  --ctp-rosewater: #f4dbd6;
+  --ctp-flamingo:  #f0c6c6;
+  --ctp-pink:      #f5bde6;
+  --ctp-mauve:     #c6a0f6;
+  --ctp-red:       #ed8796;
+  --ctp-maroon:    #ee99a0;
+  --ctp-peach:     #f5a97f;
+  --ctp-yellow:    #eed49f;
+  --ctp-green:     #a6da95;
+  --ctp-teal:      #8bd5ca;
+  --ctp-sky:       #91d7e3;
+  --ctp-sapphire:  #7dc4e4;
+  --ctp-blue:      #8aadf4;
+  --ctp-lavender:  #b7bdf8;
+  --ctp-text:      #cad3f5;
+  --ctp-subtext1:  #b8c0e0;
+  --ctp-subtext0:  #a5adcb;
+  --ctp-overlay2:  #939ab7;
+  --ctp-overlay1:  #8087a2;
+  --ctp-overlay0:  #6e738d;
+  --ctp-surface2:  #5b6078;
+  --ctp-surface1:  #494d64;
+  --ctp-surface0:  #363a4f;
+  --ctp-base:      #24273a;
+  --ctp-mantle:    #1e2030;
+  --ctp-crust:     #181926;
+}
+
+/* Esposizione a Tailwind: genera utility come bg-base, text-text, border-surface0, ... */
+@theme inline {
+  --color-rosewater: var(--ctp-rosewater);
+  --color-flamingo:  var(--ctp-flamingo);
+  --color-pink:      var(--ctp-pink);
+  --color-mauve:     var(--ctp-mauve);
+  --color-red:       var(--ctp-red);
+  --color-maroon:    var(--ctp-maroon);
+  --color-peach:     var(--ctp-peach);
+  --color-yellow:    var(--ctp-yellow);
+  --color-green:     var(--ctp-green);
+  --color-teal:      var(--ctp-teal);
+  --color-sky:       var(--ctp-sky);
+  --color-sapphire:  var(--ctp-sapphire);
+  --color-blue:      var(--ctp-blue);
+  --color-lavender:  var(--ctp-lavender);
+  --color-text:      var(--ctp-text);
+  --color-subtext1:  var(--ctp-subtext1);
+  --color-subtext0:  var(--ctp-subtext0);
+  --color-overlay2:  var(--ctp-overlay2);
+  --color-overlay1:  var(--ctp-overlay1);
+  --color-overlay0:  var(--ctp-overlay0);
+  --color-surface2:  var(--ctp-surface2);
+  --color-surface1:  var(--ctp-surface1);
+  --color-surface0:  var(--ctp-surface0);
+  --color-base:      var(--ctp-base);
+  --color-mantle:    var(--ctp-mantle);
+  --color-crust:     var(--ctp-crust);
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* --- Palette materie (50 colori fissi, generati da scripts/gen-palette.py) --- */
+:root {
+  --mat-0: #9d5fdd;
+  --mat-1: #94dba2;
+  --mat-2: #e23647;
+  --mat-3: #7ea3dd;
+  --mat-4: #d0e0ae;
+  --mat-5: #dd5fd9;
+  --mat-6: #94dbc9;
+  --mat-7: #e28336;
+  --mat-8: #8d7edd;
+  --mat-9: #b5e0ae;
+  --mat-10: #dd5f95;
+  --mat-11: #94c7db;
+  --mat-12: #e2e036;
+  --mat-13: #c07edd;
+  --mat-14: #aee0c2;
+  --mat-15: #dd6d5f;
+  --mat-16: #94a1db;
+  --mat-17: #87e236;
+  --mat-18: #dd7ec6;
+  --mat-19: #aee0dd;
+  --mat-20: #ddb15f;
+  --mat-21: #ae94db;
+  --mat-22: #36e242;
+  --mat-23: #dd7e93;
+  --mat-24: #aec8e0;
+  --mat-25: #c5dd5f;
+  --mat-26: #d494db;
+  --mat-27: #36e29f;
+  --mat-28: #dd9c7e;
+  --mat-29: #afaee0;
+  --mat-30: #81dd5f;
+  --mat-31: #db94bc;
+  --mat-32: #36c8e2;
+  --mat-33: #ddcf7e;
+  --mat-34: #caaee0;
+  --mat-35: #5fdd82;
+  --mat-36: #db9495;
+  --mat-37: #366be2;
+  --mat-38: #b7dd7e;
+  --mat-39: #e0aedb;
+  --mat-40: #5fddc6;
+  --mat-41: #dbb994;
+  --mat-42: #5e36e2;
+  --mat-43: #84dd7e;
+  --mat-44: #e0aebf;
+  --mat-45: #5fb0dd;
+  --mat-46: #d7db94;
+  --mat-47: #bb36e2;
+  --mat-48: #7eddac;
+  --mat-49: #e0b7ae;
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+html { color-scheme: light dark; }
+
+body {
+  background-color: var(--ctp-base);
+  color: var(--ctp-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+/* Posizionamento delle lezioni nella griglia timetable */
+.lesson {
+  border-radius: 0.375rem;
+  border-left: 3px solid currentColor;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.lesson:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgb(0 0 0 / .18); z-index: 5; }
+
+/* Griglia settimanale: su mobile le colonne hanno una larghezza minima
+   leggibile e la griglia scorre in orizzontale; da tablet in su si adatta. */
+.timetable {
+  --col-min: 82px;
+  --gutter: 2.75rem;
+}
+.timetable-grid {
+  display: grid;
+  grid-template-columns: var(--gutter) repeat(var(--giorni, 7), minmax(var(--col-min), 1fr));
+}
+/* Su schermi larghi: nessuna larghezza minima → tutto entra senza scroll. */
+@media (min-width: 900px) {
+  .timetable { --col-min: 0px; }
+}
+
+/* Scrollbar discreta, a tema */
+.scrollarea { scrollbar-width: thin; scrollbar-color: var(--ctp-surface2) transparent; }
+.scrollarea::-webkit-scrollbar { width: 10px; height: 10px; }
+.scrollarea::-webkit-scrollbar-thumb { background: var(--ctp-surface2); border-radius: 9999px; }
+.scrollarea::-webkit-scrollbar-track { background: transparent; }
+
+/* Accessibilità */
+:focus-visible { outline: 2px solid var(--ctp-mauve); outline-offset: 2px; }
+[x-cloak] { display: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
