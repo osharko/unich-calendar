@@ -79,6 +79,14 @@ function unichApp() {
       if (this.indice) this.stats = statistiche(this.indice);
       this.caricamento = false;
 
+      // Primo accesso: se non c'è indice in cache, il download parte da sé
+      // (non serve premere "Aggiorna elenco"). Se offline, si riproverà al
+      // prossimo reload / ritorno online.
+      if (!this.indice) {
+        if (navigator.onLine !== false) this.aggiornaIndice();
+        else addEventListener('online', () => !this.indice && this.aggiornaIndice(), { once: true });
+      }
+
       // Tema: il default segue il sistema e NON viene salvato finché l'utente
       // non sceglie esplicitamente (toggleTema).
       this.temaSalvato = store.getTema(); // 'auto' di default

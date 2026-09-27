@@ -206,7 +206,8 @@ Lo **scraper gira quindi a runtime nel browser** (`js/scraper.js`) ed è **lazy*
 
 Configurare un corso costa quindi **2 richieste**, non una per tutti i 77 corsi.
 I risultati (indice e anni per corso) sono salvati in `localStorage`, quindi i
-riaccessi sono gratuiti. Il tasto **"Aggiorna elenco"** ripete lo scraping.
+riaccessi sono gratuiti. L'indice si scarica **da solo al primo avvio**; il tasto
+**"Aggiorna elenco"** serve solo per ri-sincronizzarlo.
 
 #### Note sugli anni
 
@@ -260,8 +261,9 @@ nell'ordine giusto (lo scope globale condiviso fa da "module system").
 
 ### Flusso dati (lazy)
 
-1. Primo accesso: `store.load()` → se non c'è l'**indice**, si scarica con
-   "Aggiorna elenco" (**1 richiesta**): poli, dipartimenti e corsi.
+1. Primo accesso: se non c'è l'**indice** in cache, `init()` lo scarica
+   **automaticamente** (**1 richiesta**: poli, dipartimenti e corsi) mostrando
+   uno skeleton; il tasto "Aggiorna elenco" resta solo per ri-sincronizzare.
 2. L'utente sceglie Polo → Dipartimento (i corsi sono già in memoria, 0 richieste).
 3. Sceglie il corso → si caricano i suoi **anni/percorsi** (**1 richiesta**, poi cache).
 4. Aggiunge l'anno → `linkCalendarioId`.

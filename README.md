@@ -16,7 +16,9 @@ come **PWA statica** pubblicabile su GitHub Pages. Nessun server, tutto nel brow
 
 ## Uso
 
-1. Apri il sito e premi **⟳ Aggiorna elenco** (solo la prima volta: i dati restano salvati).
+1. Apri il sito: **l'elenco dei corsi si scarica da solo** al primo avvio
+   (una sola richiesta; poi resta salvato sul dispositivo). Il pulsante
+   **⟳ Aggiorna elenco** serve solo per ri-sincronizzarlo in futuro.
 2. Segui il wizard: Polo → Dipartimento/Scuola → Corso → Anno.
 3. **Materie**: clicca i pill sopra la griglia per mostrare/nascondere gli
    insegnamenti (il colore del pallino è quello dei blocchi in calendario).

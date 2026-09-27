@@ -106,10 +106,27 @@
         </button>
       </div>
 
+      <!-- Auto-load: spinner + skeleton mentre scarichiamo l'elenco -->
+      <template x-if="!indice && scraping">
+        <div class="rounded-xl border border-surface0 bg-mantle p-5">
+          <div class="mb-4 flex items-center gap-2.5 text-sm text-subtext1">
+            <span class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-surface2 border-t-mauve"></span>
+            <span>Prepariamo l'elenco dei corsi (solo al primo avvio)…</span>
+          </div>
+          <div class="space-y-2" aria-hidden="true">
+            <span class="block h-11 w-full animate-pulse rounded-lg bg-surface0"></span>
+            <span class="block h-11 w-full animate-pulse rounded-lg bg-surface0/70" style="animation-delay:.15s"></span>
+            <span class="block h-11 w-full animate-pulse rounded-lg bg-surface0/40" style="animation-delay:.3s"></span>
+          </div>
+        </div>
+      </template>
+
+      <!-- Fallito/assente e non in caricamento (offline, errore): retry manuale -->
       <template x-if="!indice && !scraping">
         <div class="rounded-xl border border-surface0 bg-mantle p-5 text-sm text-subtext0">
-          Al primo accesso serve scaricare l'elenco dei corsi dal sito dell'ateneo
-          (una sola richiesta). Premi <strong class="text-text">Aggiorna elenco</strong>.
+          L'elenco dei corsi non è ancora disponibile e il download automatico non è
+          riuscito. Premi <strong class="text-text">⟳ Aggiorna elenco</strong> per
+          riprovare (serve connessione; poi resta salvato sul dispositivo).
         </div>
       </template>
 

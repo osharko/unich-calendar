@@ -63,10 +63,18 @@ await sleep(3500);
 try {
   ok('Alpine montato', await evaluate(`return typeof ${A}.toggleMateria === "function"`));
 
-  // ---- wizard lazy ----
-  await evaluate(`await ${A}.aggiornaIndice(); return 1;`);
-  const stats = await evaluate(`return { corsi: ${A}.stats.corsi, err: String(${A}.errore) };`);
-  ok('indice caricato (1 req)', stats.corsi > 50 && stats.err === 'null', JSON.stringify(stats));
+  // ---- auto-load indice: NESSUN click, deve partire da sé al primo accesso ----
+  await evaluate(`return 1;`);
+  let autoOk = false, scrapeVisto = false;
+  for (let i = 0; i < 25; i++) {           // ~25s di pazienza
+    const s = await evaluate(`return { corsi: ${A}.stats.corsi, scraping: !!${A}.scraping };`);
+    if (s.scraping) scrapeVisto = true;
+    if (s.corsi > 50) { autoOk = true; break; }
+    await sleep(1000);
+  }
+  ok('indice si scarica da solo (no click)', autoOk, `loader visto: ${scrapeVisto}`);
+  const errIdx = await evaluate(`return String(${A}.errore)`);
+  ok('nessun errore dopo auto-load', errIdx === 'null', errIdx);
 
   await evaluate(`${A}.scegliPolo('Polo di Chieti'); ${A}.scegliStruttura('Dipartimento di Scienze Filosofiche, Pedagogiche e Sociali'); return 1;`);
   const nCorsi = await evaluate(`return ${A}.corsiFiltrati.length;`);
