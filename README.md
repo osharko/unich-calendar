@@ -26,13 +26,16 @@ come **PWA statica** pubblicabile su GitHub Pages. Nessun server, tutto nel brow
    l'app è aperta/SW vivo; per il recapito ad app chiusa serve push da server,
    vedi AGENT.md §notifiche). **☀/☾** cambia tema; **⟳** aggiorna le lezioni.
 
-## Servire in locale (senza python)
+## Servire in locale (senza python, senza server!)
 
-Il progetto sono file statici puri: nessun build step obbligatorio, nessun runtime.
+I JS sono **script classici** (non moduli ES): basta un **doppio click su
+`index.html`** (`file://`). Nessuna build, nessun server, nessun runtime.
+Unica eccezione: il **service worker** (cache offline/PWA) funziona solo su
+http/https — per testarlo:
 
 ```bash
-node scripts/serve.mjs 8080      # server statico zero-dipendenze
-# oppure qualsiasi cosa: nginx, caddy, php -S, `npx serve`, …
+node scripts/serve.mjs 8080     # server statico zero-dipendenze
+# oppure nginx, caddy, php -S, `npx serve`, …
 ```
 
 Test E2E headless (JS/DOM/rete reali; il CSS non viene renderizzato):

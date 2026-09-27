@@ -14,7 +14,6 @@
  *     <a href=".../calendario-lezioni/<corso>">L-19 Filosofia ...</a>
  *   <a href="...cineca.it/calendarioPubblico/linkCalendarioId=...">Lettorato</a>
  */
-import { CONFIG } from './config.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -26,7 +25,7 @@ const PAGE_CORSO_RE = /\/didattica\/frequentare\/calendario-lezioni\/(.+)$/;
 /* ================================================================== */
 
 /** Scarica una pagina unich.it tramite proxy, con retry e backoff. */
-export async function fetchPagina(url) {
+async function fetchPagina(url) {
   const endpoint = CONFIG.proxy(url);
   let ultimoErrore;
 
@@ -73,7 +72,7 @@ function corsoDaAnchor(a) {
  * Parsa la pagina indice: restituisce poli[] con strutture[] e i loro corsi.
  * I corsi NON hanno ancora i linkCalendarioId (si ottengono con parseCorso).
  */
-export function parseIndice(html) {
+function parseIndice(html) {
   const doc = parseHtml(html);
   const contenuto =
     doc.querySelector('.node__content, .block-field-blocknodepagefield-contenuto, main') ||
@@ -137,7 +136,7 @@ export function parseIndice(html) {
 /**
  * Parsa una pagina corso: anni/percorsi → linkCalendarioId (ordinati per anno).
  */
-export function parseCorso(html) {
+function parseCorso(html) {
   const doc = parseHtml(html);
   const contenuto = doc.querySelector('.node__content, main') || doc.body;
   const calendari = [];
@@ -168,7 +167,7 @@ const normalizza = (s) =>
  * Cineca via /api/LinkCalendario/searchCalendarioPubblico non è possibile
  * (richiede auth). Come fallback lasciamo l'elenco vuoto e lo segnaliamo.
  */
-export function isPaginaCorsoUtile(html) {
+function isPaginaCorsoUtile(html) {
   return parseCorso(html).length > 0;
 }
 
@@ -180,7 +179,7 @@ export function isPaginaCorsoUtile(html) {
  * Passo 1 — scarica e parsa l'indice (una sola richiesta).
  * @returns {{poli: Array, generatoIl: string, fonte: string}}
  */
-export async function caricaIndice() {
+async function caricaIndice() {
   const html = await fetchPagina(CONFIG.catalogoUrl);
   const poli = parseIndice(html);
   if (!poli.length) {
@@ -197,14 +196,14 @@ export async function caricaIndice() {
  * Passo 2 — risolve gli anni di un singolo corso (una sola richiesta).
  * @returns {Array<{etichetta, linkCalendarioId, anno, percorso}>}
  */
-export async function caricaAnniCorso(urlCorso) {
+async function caricaAnniCorso(urlCorso) {
   if (!urlCorso) return [];
   const html = await fetchPagina(urlCorso);
   return parseCorso(html);
 }
 
 /** Statistiche sintetiche dell'indice, per la UI. */
-export function statistiche(indice) {
+function statistiche(indice) {
   let strutture = 0, corsi = 0, calendariDiretti = 0;
   for (const p of indice?.poli || []) {
     strutture += p.strutture.length;

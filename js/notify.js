@@ -7,13 +7,13 @@
  */
 
 /** Inizializza e restituisce lo stato del permesso. */
-export function initNotifiche() {
+function initNotifiche() {
   if (!('Notification' in window) || !('serviceWorker' in navigator)) return 'unsupported';
   return Notification.permission; // 'default' | 'granted' | 'denied'
 }
 
 /** Chiede il permesso (va chiamato in un gestore di click dell'utente). */
-export async function chiediPermesso() {
+async function chiediPermesso() {
   if (!('Notification' in window)) return 'unsupported';
   if (Notification.permission === 'default') {
     try { return await Notification.requestPermission(); } catch { return 'denied'; }
@@ -25,7 +25,7 @@ export async function chiediPermesso() {
  * Invia al SW l'elenco dei promemoria da programmare
  * [{ id, titolo, inizio, aula }] (già filtrati per finestra oraria).
  */
-export async function sincronizzaNotifiche(items) {
+async function sincronizzaNotifiche(items) {
   if (!('serviceWorker' in navigator)) return;
   try {
     const reg = await navigator.serviceWorker.getRegistration();

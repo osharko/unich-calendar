@@ -234,12 +234,13 @@ index.html                 UI (Alpine.js), unica pagina
 sw.js                      service worker (PWA, cache app shell)
 manifest.webmanifest       manifest PWA
 js/
-  config.js                costanti ateneo + costanti cache + proxy
+  config.js                costanti ateneo + proxy + notifiche
   store.js                 localStorage: scelte, indice, anni per corso, cache lezioni, tema
   api.js                   client API Cineca + normalizzazione impegni
   scraper.js               scraping lazy unich.it via proxy → indice + anni corso
   calendar.js              costruzione griglia "timetable" + utilità date
-  app.js                   stato Alpine, wizard, filtri materie, orchestrazione
+  notify.js                notifiche locali (ponte app ↔ service worker)
+  app.js                   stato Alpine, wizard, materie, orchestrazione
 css/
   app.css                  sorgente Tailwind + tema Catppuccin
   styles.css               output compilato (committato, servito da GH Pages)
@@ -248,8 +249,22 @@ worker/
   worker.js                Cloudflare Worker (proxy CORS verso unich.it)
   README.md                istruzioni di deploy
 icons/                     icone PWA
-scripts/build-css.sh       compila Tailwind (standalone CLI)
+scripts/
+  build-css.sh             compila Tailwind (standalone CLI)
+  gen-palette.mjs          (ri)genera i 50 colori --mat-N in css/app.css
+  demodulize.mjs           (storia) convertì i moduli ES in script classici
+  serve.mjs                server statico zero-dipendenze (solo per test SW/PWA)
+  test-lightpanda.mjs      E2E con browser headless via CDP
 ```
+
+### Vincolo: NESSUN modulo ES
+
+Tutti i `js/*.js` sono **script classici** caricati con `<script src>` in ordine
+di dipendenze (config → store → api → scraper → calendar → notify → app).
+Motivo: i moduli ES **non partono da `file://`** (il browser blocca gli import
+cross-file per CORS); con i classici basta un doppio click sul file.
+Se aggiungi un file: dichiaralo come `<script>` in fondo a `index.html`
+nell'ordine giusto (lo scope globale condiviso fa da "module system").
 
 ### Flusso dati (lazy)
 

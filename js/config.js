@@ -2,7 +2,7 @@
  * config.js — costanti ateneo e della PWA.
  * Valori verificati sul campo (vedi AGENT.md §2).
  */
-export const CONFIG = {
+const CONFIG = {
   // API Cineca "University Planner" (CORS aperto)
   apiBase: 'https://unich.prod.up.cineca.it/api',
   dominio: 'unich.prod.up.cineca.it',
@@ -40,7 +40,7 @@ export const CONFIG = {
 };
 
 /** Chiavi localStorage, versionate per poter invalidare la cache in futuro. */
-export const KEYS = {
+const KEYS = {
   version: 'unich:v1',
   stato: 'unich:v1:stato',       // scelte utente + preferenze
   indice: 'unich:v1:indice',     // gerarchia Polo → Struttura → Corso
@@ -50,7 +50,7 @@ export const KEYS = {
 };
 
 /** Range di default: anno accademico corrente (ago → ago successivo). */
-export function annoAccademicoCorrente(oggi = new Date()) {
+function annoAccademicoCorrente(oggi = new Date()) {
   // L'anno accademico inizia a settembre; cambiando mese di ottobre (indice 9)
   // si è già nell'anno accademico successivo.
   const y = oggi.getMonth() >= 8 ? oggi.getFullYear() : oggi.getFullYear() - 1;

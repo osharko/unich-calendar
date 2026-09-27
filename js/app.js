@@ -8,17 +8,7 @@
  *  - Le materie si attivano/disattivano cliccando i "pill" sopra la griglia.
  *  - Notifiche locali 15 min prima della lezione (attivabili dalla topbar).
  */
-import { CONFIG, annoAccademicoCorrente } from './config.js';
 const NUM_COLORI = CONFIG.numColori;
-import { store } from './store.js';
-import { api } from './api.js';
-import { caricaIndice, caricaAnniCorso, statistiche } from './scraper.js';
-import {
-  rangeVista, intervalloOrario, buildColonne, disponiLezioni,
-  aggiungiGiorni, aggiungiMesi, formattaData, formattaOra,
-  stessoGiorno,
-} from './calendar.js';
-import { initNotifiche, chiediPermesso, sincronizzaNotifiche } from './notify.js';
 
 /** Hash FNV-1a stabile → indice della palette colori-materia. */
 function hashColore(testo) {
@@ -30,7 +20,7 @@ function hashColore(testo) {
   return Math.abs(h) % NUM_COLORI;
 }
 
-export function unichApp() {
+function unichApp() {
   return {
     /* ============================== stato ============================== */
     caricamento: true,
@@ -61,6 +51,8 @@ export function unichApp() {
     da: null, a: null,
     vista: 'settimana',
     giorniVisibili: 7,
+    menuVista: false,   // dropdown custom Orizzontale/Mese
+    menuGiorni: false,  // dropdown custom 1/3/5/7 giorni
     dataRif: new Date(),
     giorni: [], ore: [],
     oraMin: 8, oraMax: 20,

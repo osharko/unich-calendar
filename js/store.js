@@ -9,7 +9,6 @@
  *   unich:v1:anni      { [urlCorso]: [{etichetta, linkCalendarioId, anno}] }
  *   unich:v1:cache     { [linkCalendarioId]: { aggiornatoIl, lezioni } }
  */
-import { KEYS } from './config.js';
 
 function leggi(chiave, fallback) {
   try {
@@ -31,7 +30,7 @@ function scrivi(chiave, valore) {
   }
 }
 
-export const store = {
+const store = {
   /* ------------------------------ stato ------------------------------ */
   statoDefault: () => ({
     selezioni: [],          // [{ linkCalendarioId, etichetta, corso, anno, colore, attivo }]

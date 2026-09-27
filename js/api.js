@@ -4,7 +4,6 @@
  * CORS: aperto (access-control-allow-origin: *), quindi chiamabile dal browser.
  * Riferimenti completi in AGENT.md §2.1.
  */
-import { CONFIG, KEYS } from './config.js';
 
 async function post(endpoint, body) {
   const res = await fetch(`${CONFIG.apiBase}${endpoint}`, {
@@ -29,7 +28,7 @@ async function get(endpoint, params = {}) {
 }
 
 /** Il clienteId è stabile, ma lo ricaviamo dal dominio e lo memoizziamo. */
-export async function getClienteId() {
+async function getClienteId() {
   const chiave = `${KEYS.version}:clienteId`;
   let cache = null;
   try { cache = sessionStorage.getItem(chiave); } catch { /* storage non disponibile */ }
@@ -43,7 +42,7 @@ export async function getClienteId() {
   }
 }
 
-export const api = {
+const api = {
   getClienteId,
 
   /** Metadati di un calendario pubblico (titolo, corsi, anni, ...). */
@@ -83,7 +82,7 @@ export const api = {
 /** Hash stabile (FNV-1a) → ora i colori materia si calcolano in app.js. */
 
 
-export function normalizzaImpegno(i, linkCalendarioId) {
+function normalizzaImpegno(i, linkCalendarioId) {
   const evento = i.evento || {};
   const dettagli = evento.dettagliDidattici || [];
   // Un impegno può essere condiviso da più insegnamenti (es. corso integrato).

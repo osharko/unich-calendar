@@ -5,55 +5,54 @@
  * Su mobile la griglia ruota in verticale (giorni in alto, ore a sinistra),
  * che è la forma più leggibile per un calendario settimanale.
  */
-import { CONFIG } from './config.js';
 
 /* ------------------------------- date ------------------------------- */
 
-export const MS_MIN = 60 * 1000;
+const MS_MIN = 60 * 1000;
 
-export function inizioGiorno(d) {
+function inizioGiorno(d) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
 }
 
-export function inizioSettimana(d) {
+function inizioSettimana(d) {
   const x = inizioGiorno(d);
   const giorno = (x.getDay() + 6) % 7; // lunedì = 0
   x.setDate(x.getDate() - giorno);
   return x;
 }
 
-export function aggiungiGiorni(d, n) {
+function aggiungiGiorni(d, n) {
   const x = new Date(d);
   x.setDate(x.getDate() + n);
   return x;
 }
 
-export function aggiungiMesi(d, n) {
+function aggiungiMesi(d, n) {
   const x = new Date(d);
   x.setMonth(x.getMonth() + n);
   return x;
 }
 
-export function stessoGiorno(a, b) {
+function stessoGiorno(a, b) {
   return inizioGiorno(a).getTime() === inizioGiorno(b).getTime();
 }
 
-export function formattaOra(d) {
+function formattaOra(d) {
   return new Date(d).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
 }
 
-export function formattaData(d, opts = { weekday: 'short', day: 'numeric', month: 'short' }) {
+function formattaData(d, opts = { weekday: 'short', day: 'numeric', month: 'short' }) {
   return new Date(d).toLocaleDateString('it-IT', opts);
 }
 
-export function iso(d) {
+function iso(d) {
   return new Date(d).toISOString();
 }
 
 /** Range (da, a, nGiorni) per la vista corrente. */
-export function rangeVista(dataRif, vista, nGiorni = 7) {
+function rangeVista(dataRif, vista, nGiorni = 7) {
   if (vista === 'mese') {
     const da = inizioSettimana(new Date(dataRif.getFullYear(), dataRif.getMonth(), 1));
     const a = aggiungiGiorni(inizioSettimana(new Date(dataRif.getFullYear(), dataRif.getMonth() + 1, 0)), 7);
@@ -67,13 +66,13 @@ export function rangeVista(dataRif, vista, nGiorni = 7) {
 
 /* ------------------------------ griglia ------------------------------ */
 
-export const GIORNI = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+const GIORNI = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
 /**
  * Costruisce le colonne (giorni) del timetable.
  * @returns {{giorni: Array, ore: number[], oraMin: number, oraMax: number, slotMin: number}}
  */
-export function buildColonne(lezioni, da, a, opts = {}) {
+function buildColonne(lezioni, da, a, opts = {}) {
   const oraMin = opts.oraMin ?? 8;
   const oraMax = opts.oraMax ?? 20;
   const nGiorni = opts.nGiorni ?? 7;
@@ -101,7 +100,7 @@ export function buildColonne(lezioni, da, a, opts = {}) {
  * Determina l'intervallo orario effettivo da mostrare in base alle lezioni.
  * Se non ci sono lezioni, usa il default 8–20.
  */
-export function intervalloOrario(lezioni, opts = {}) {
+function intervalloOrario(lezioni, opts = {}) {
   const defMin = opts.oraMin ?? 8;
   const defMax = opts.oraMax ?? 20;
   // Solo lezioni reali: le indisponibilità possono avere date "sentinel" incoerenti.
@@ -130,7 +129,7 @@ export function intervalloOrario(lezioni, opts = {}) {
  * (percentuale sull'intervallo orario) e l'eventuale affiancamento
  * orizzontale quando si sovrappongono.
  */
-export function disponiLezioni(lezioni, colonne, oraMin, oraMax) {
+function disponiLezioni(lezioni, colonne, oraMin, oraMax) {
   const giorni = Array.isArray(colonne) ? colonne : colonne.giorni;
   const perGiorno = new Map(giorni.map((g) => [g.key, []]));
   const span = Math.max(1, oraMax - oraMin);
@@ -186,10 +185,4 @@ export function disponiLezioni(lezioni, colonne, oraMin, oraMax) {
   }
 
   return giorni.map((g) => ({ ...g, lezioni: perGiorno.get(g.key) || [] }));
-}
-
-/** Colore CSS (variabile Catppuccin) per una lezione. */
-export function coloreLezione(l) {
-  const tinta = CONFIG.palette[l.colore % CONFIG.palette.length];
-  return { tinta, testo: `var(--ctp-${tinta})` };
 }
