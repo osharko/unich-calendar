@@ -1,0 +1,27 @@
+# wrangler.toml — deploy del Worker con CLI (alternativa alla dashboard)
+#
+#   npm i -g wrangler && wrangler login
+#   wrangler kv namespace create unich-push   # incolla l'id nel [[kv_namespaces]]
+#   wrangler secret put VAPID_PRIVATE          # JWK di scripts/gen-vapid.mjs
+#   wrangler secret put VAPID_SUBJECT          # mailto:una-tua@email.it
+#   wrangler deploy
+#
+# La variabile non segreta VAPID_PUBLIC sta in [vars] sotto.
+
+name = "unich-proxy"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+
+[observability]
+enabled = true
+
+[[kv_namespaces]]
+binding = "PUSH"
+id = "INCOLLA_L_ID_DOPO_kv_namespace_create"
+
+[triggers]
+crons = ["*/15 * * * *"]
+
+[vars]
+VAPID_PUBLIC = "BIGT-2PCL-yPuN9PQ-IgxxTjqAMrcem8iRMVKmS_aPS24PzU0XczbiYyAhn69W66eVAGEMoJT9yC4vfheSzH5sc"
+# VAPID_SUBJECT e CRON_SECRET: mettili come SECRET, non qui.

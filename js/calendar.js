@@ -58,9 +58,8 @@ function rangeVista(dataRif, vista, nGiorni = 7) {
     const a = aggiungiGiorni(inizioSettimana(new Date(dataRif.getFullYear(), dataRif.getMonth() + 1, 0)), 7);
     return { da, a, nGiorni: Math.round((a - da) / 86400000) };
   }
-  // Vista settimana: parte dal giorno di riferimento (non dal lunedì) se
-  // si mostrano meno di 7 giorni, così "oggi" è sempre la prima colonna.
-  const da = nGiorni >= 7 ? inizioSettimana(dataRif) : inizioGiorno(dataRif);
+  // Vista settimana: parte SEMPRE dal lunedì (in 5gg → Lun-Ven, niente weekend).
+  const da = inizioSettimana(dataRif);
   return { da, a: aggiungiGiorni(da, nGiorni), nGiorni };
 }
 

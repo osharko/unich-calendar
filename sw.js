@@ -1,15 +1,17 @@
 /**
  * sw.js — service worker (PWA).
  *
- * 1) Cache app shell: cache-first, con refresh in background.
+ * 1) Cache app shell: cache-first con refresh in background.
  * 2) Dati remoti (API Cineca / proxy): network-first con fallback in cache.
- * 3) Promemoria lezione: timer locali (15 min prima). L'app invia la lista con
- *    postMessage { type:'unich:promemoria', items:[{id,titolo,inizio,aula}] }.
- *    I timer sopravvivono finché il SW è vivo; alla riattivazione li ricostruiamo
- *    dall'IndexedDB. NB: recapito garantito AD APP CHIUSA richiederebbe Web Push
- *    da server (Cloudflare Cron): vedi AGENT.md §notifiche.
+ * 3) WEB PUSH: il Worker invia i payload JSON
+ *      { type:'reminder'|'changed', title, body, cals:[...], tag }
+ *    - notifichiamo sempre (recapito anche ad app chiusa: è il browser che
+ *      sveglia il SW);
+ *    - su 'changed' salviamo il meta in IndexedDB ('unich-push'.'meta'.'lastChange')
+ *      e avvisiamo i client aperti (postMessage) così l'app si auto-rinfresca.
+ *    I vecchi timer locali sono rimossi: il promemoria lo decide il server.
  */
-const VERSIONE = 'unich-v8';
+const VERSIONE = 'unich-v9';
 const SHELL = [
   './',
   './index.html',
@@ -28,74 +30,34 @@ const SHELL = [
   './icons/icon-512.png',
 ];
 
-/* ------------------------- persistenza promemoria ------------------------ */
+/* ------------------------------- meta DB -------------------------------- */
 
-function apriDB() {
+function metaDb() {
   return new Promise((resolve, reject) => {
-    const rq = indexedDB.open('unich-notify', 1);
-    rq.onupgradeneeded = () => rq.result.createObjectStore('cfg');
+    const rq = indexedDB.open('unich-push', 1);
+    rq.onupgradeneeded = () => rq.result.createObjectStore('meta');
     rq.onsuccess = () => resolve(rq.result);
     rq.onerror = () => reject(rq.error);
   });
 }
-async function salvaPromemoria(items) {
-  const db = await apriDB();
-  return new Promise((resolve) => {
-    const tx = db.transaction('cfg', 'readwrite');
-    tx.objectStore('cfg').put(items, 'lista');
-    tx.oncomplete = tx.onabort = () => resolve();
-  });
-}
-async function leggiPromemoria() {
+
+async function segnaCambio(cals) {
   try {
-    const db = await apriDB();
-    return await new Promise((resolve) => {
-      const rq = db.transaction('cfg', 'readonly').objectStore('cfg').get('lista');
-      rq.onsuccess = () => resolve(rq.result || []);
-      rq.onerror = () => resolve([]);
-    });
-  } catch { return []; }
-}
-
-/* ------------------------------- timer ---------------------------------- */
-
-let timers = new Map();
-
-function azzeraTimers() {
-  for (const t of timers.values()) clearTimeout(t);
-  timers.clear();
-}
-
-/** Programma i timer: fuoco = inizio - anticipo (min 1s da ora, se futuro). */
-async function programma(items) {
-  azzeraTimers();
-  const ANTICIPO = 15 * 60 * 1000;
-  const ORA = 24 * 60 * 60 * 1000; // setTimeout max ~24 giorni; oltre, rinvi
-  const adesso = Date.now();
-  for (const it of items) {
-    const fuoco = new Date(it.inizio).getTime() - ANTICIPO;
-    const attesa = fuoco - adesso;
-    if (attesa < 0 || attesa > 2 ** 31 - 1) continue;
-    timers.set(it.id, setTimeout(() => notificare(it), Math.max(1000, attesa)));
-    void ORA;
+    const db = await metaDb();
+    const tx = db.transaction('meta', 'readwrite');
+    const store = tx.objectStore('meta');
+    const prev = await new Promise((res) => {
+      const g = store.get('lastChange');
+      g.onsuccess = () => res(g.result); g.onerror = () => res(null);
+    }) || { cals: [] };
+    store.put({ at: Date.now(), cals: [...new Set((prev.cals || []).concat(cals || []))] }, 'lastChange');
+    await new Promise((res) => { tx.oncomplete = res; tx.onabort = res; });
+  } catch (e) {
+    console.warn('[sw] segnaCambio', e?.message);
   }
-  await salvaPromemoria(items);
 }
 
-async function notificare(it) {
-  const corpo = [
-    new Date(it.inizio).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
-    it.aula ? `· ${it.aula}` : '',
-  ].filter(Boolean).join(' ');
-  await self.registration.showNotification(`Lezione tra 15 min: ${it.titolo}`, {
-    body: corpo,
-    tag: `lez-${it.id}`,
-    icon: './icons/icon-192.png',
-    badge: './icons/icon-192.png',
-  });
-}
-
-/* ------------------------------- lifecycle ------------------------------ */
+/* ------------------------------ lifecycle ------------------------------- */
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
@@ -110,17 +72,31 @@ self.addEventListener('activate', (e) => {
     caches.keys()
       .then((keys) => Promise.all(keys.filter((k) => k !== VERSIONE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
-      // Ricostruisci i timer dal DB (SW appena ripartito).
-      .then(async () => {
-        const items = await leggiPromemoria();
-        if (items.length) await programma(items);
-      })
   );
 });
 
-self.addEventListener('message', (e) => {
-  const d = e.data;
-  if (d && d.type === 'unich:promemoria') e.waitUntil(programma(d.items || []));
+/* -------------------------------- push ---------------------------------- */
+
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { title: 'Lezioni Ud’A', body: e.data?.text() || '' }; }
+  const title = d.title || 'Lezioni Ud’A';
+  const body = d.body || '';
+
+  e.waitUntil((async () => {
+    if (d.type === 'changed') {
+      await segnaCambio(d.cals);
+      const client = await self.clients.matchAll({ type: 'window' });
+      client.forEach((c) => c.postMessage({ type: 'unich:changed', cals: d.cals || [] }));
+    }
+    await self.registration.showNotification(title, {
+      body,
+      tag: d.tag || (d.type === 'changed' ? 'unich-changed' : 'unich-reminder'),
+      icon: './icons/icon-192.png',
+      badge: './icons/icon-192.png',
+      data: { cals: d.cals || [] },
+    });
+  })());
 });
 
 self.addEventListener('notificationclick', (e) => {

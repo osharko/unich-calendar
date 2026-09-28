@@ -245,9 +245,11 @@ icons/                     icone PWA
 scripts/
   build-css.sh             compila Tailwind (standalone CLI)
   gen-palette.mjs          (ri)genera i 50 colori --mat-N in css/app.css
+  gen-vapid.mjs            genera la coppia di chiavi VAPID (Web Push)
   demodulize.mjs           (storia) convertì i moduli ES in script classici
   serve.mjs                server statico zero-dipendenze (solo per test SW/PWA)
   test-lightpanda.mjs      E2E con browser headless via CDP
+  test-proxy.mjs           verifica che lo scraping passi SOLO dal Worker
 ```
 
 ### Vincolo: NESSUN modulo ES
@@ -310,34 +312,54 @@ come sfondo/striscia, non come lezioni.
   anti-collisione: stabile anche cambiando calendario. Pill, pallini e blocchi
   usano sempre `var(--mat-N)`.
 
-### Notifiche (promemoria lezione)
+### Notifiche (Web Push reali via Worker)
 
-Attuale: **notifiche locali** gestite dal service worker (`sw.js` + `js/notify.js`).
-- Stato `notificheOn` in topbar (🔔/🔕). L'app invia al SW la lista delle lezioni
-  visibili entro ~3 giorni con `postMessage({type:'unich:promemoria', items})`.
-- Il SW programma `setTimeout` a `inizio − 15 min` e persiste la lista in
-  IndexedDB (`unich-notify`) per ricostruire i timer alla riattivazione.
-- **Limiti**: il recapito *garantito ad app chiusa* non è possibile senza push
-  da server: il SW viene terminato e i timer non sopravvivono a lungo.
-- **Upgrade reale (gratis su Cloudflare)**: Worker + **Cron Triggers** (es. ogni
-  15 min) che calcola le lezioni imminenti e invia **Web Push** (VAPID) agli
-  abbonati; il client fa solo `PushManager.subscribe()` e mostra la notifica
-  nell'handler `push`. Con Pages + Worker proxy sullo stesso account, tutto
-  resta in un unico ecosistema gratuito.
+Il sistema è **server-push**: recapito garantito anche ad app chiusa (con PWA
+installata — requisito standard iOS/Android/desktop; la campanella 🔔 fa da
+gate e apre la guida/installazione diretta con `beforeinstallprompt`).
+
+- **Worker** `worker/worker.js` (estensione dell'unich-proxy):
+  - `POST /subscribe` / `POST /unsubscribe`: salva in KV (`sub:<sha256(endpoint)>`)
+    subscription + preferenze (`calendari: [{id, label, corso, materieVisibili}]`);
+  - **Cron `ogni 15 min`** (`scheduled`): per ogni calendario sottoscritto fa
+    **UNA sola chiamata Cineca** (dedup tra studenti → scalabile), calcola
+    l'hash degli eventi prossimi (8 gg); se l'hash cambia → push
+    "calendario aggiornato"; gli eventi in partenza tra ~8 e ~25 min → push
+    "lezione tra 15 min" (dedup per evento in KV `rem:<id>`, TTL 2 gg, e
+    rispetto delle materie nascoste di ciascuno). Subscription morte (404/410)
+    auto-rimosse.
+  - Crittografia Web Push **RFC 8291 (aes128gcm)** implementata con WebCrypto
+    pura nel Worker (nessuna dipendenza); JWT VAPID ES256.
+  - Debug: `GET /tick` e `GET /subs` con header `x-cron-secret`.
+- **Deploy/setup**: vedi `worker/README.md` + `worker/wrangler.toml`. Richiesti:
+  KV namespace (binding `PUSH`), variabili `VAPID_PUBLIC`/`VAPID_SUBJECT`,
+  secret `VAPID_PRIVATE` (JWK da `scripts/gen-vapid.mjs`), cron trigger.
+  La `vapidPublicKey` in `js/config.js` DEVE coincidere con quella del Worker.
+- **Client** (`js/notify.js` + `sw.js` handler `push`): all'attivazione fa
+  `PushManager.subscribe()` e invia prefs; ogni modifica a calendari/materie
+  fa un **debounced re-POST** (`schedulePushSync`). Il payload push è JSON
+  `{type,title,body,cals}`: il SW notifica e, per i `changed`, scrive il meta
+  in IndexedDB e notifica le finestre aperte (postMessage → refresh live).
+- **Auto-refresh locale RIMOSSO**: niente più `aggiornaLezioni()` cieco
+  all'avvio né timer nel SW. L'app si aggiorna **solo** quando: (a) l'utente
+  preme ⟳, o (b) il push 'changed' dice che è ora (`verificaCambioDaPush()`
+  confronta il meta con `aggiornatoIl` della cache). Tutto il resto del
+  tempo: cache localStorage istantanea e offline.
 
 ## Test con browser headless (Lightpanda)
 
 Lightpanda (`docker.io/lightpanda/browser`) **non rende CSS/visuali**, ma esegue
 JS e DOM reali con fetch di rete: ottimo per verifica end-to-end della logica.
+NB: è fragilissimo con DOM pesanti (35 colonne della vista Mese → perde la
+promise CDP; recovery gestita nel test) e non supporta `file://`.
 
 ```bash
-python3 -m http.server 8123 &
+node scripts/serve.mjs 8123 &
 podman run -d --name lp --net=host docker.io/lightpanda/browser:latest
-node scripts/test-lightpanda.mjs   # 10 asserzioni: wizard→lezioni→materie→vista
+node scripts/test-lightpanda.mjs   # ~20 asserzioni: wizard→lezioni→materie→vista→push
 ```
 
 Per la verifica visiva usare un browser reale.
-
 ---
 
 ## 5. Sviluppo
@@ -358,7 +380,7 @@ chmod +x /tmp/tailwindcss
 Per provare in locale:
 
 ```bash
-python3 -m http.server 8000     # serve la root del repo
+node scripts/serve.mjs 8000      # server statico zero-dipendenze
 # apri http://localhost:8000
 ```
 

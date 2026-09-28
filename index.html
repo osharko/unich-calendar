@@ -60,10 +60,13 @@
       <!-- Azioni -->
       <div class="ml-auto flex shrink-0 items-center gap-1">
         <!-- Notifiche -->
+        <!-- Notifiche: pallino ambra se la PWA non è installata (senza push) -->
         <button @click="toggleNotifiche()" :title="titleNotifiche"
-                class="rounded-md border px-2.5 py-1.5 text-xs transition"
+                class="relative rounded-md border px-2.5 py-1.5 text-xs transition"
                 :class="notificheOn ? 'border-mauve bg-mauve/15 text-mauve' : 'border-surface1 text-subtext1 hover:bg-surface0'">
           <span x-text="notificheOn ? '🔔' : '🔕'"></span>
+          <span x-show="!notificheOn && pushProntaMaNonInstallata"
+                class="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-yellow" title="Installa l'app per le notifiche"></span>
         </button>
         <!-- Tema: 2 stati, default = sistema -->
         <button @click="toggleTema()" :title="temaEChi ? 'Passa al scuro' : 'Passa al chiaro'"
@@ -228,24 +231,12 @@
       </div>
       <span class="text-sm font-medium capitalize" x-text="titoloPeriodo"></span>
       <div class="ml-auto flex items-center gap-2">
-        <!-- Giorni visibili: dropdown custom (i select nativi aprono il popover
-             fuori schermo su mobile) -->
-        <div class="relative" x-show="vista === 'settimana'" @click.outside="menuGiorni = false">
-          <button @click="menuGiorni = !menuGiorni"
-                  class="rounded-md border border-surface1 bg-base px-2 py-1.5 text-xs text-text hover:bg-surface0">
-            <span x-text="`${giorniVisibili} giorni`"></span> <span class="text-subtext0">▾</span>
-          </button>
-          <div x-show="menuGiorni"
-               class="absolute right-0 top-full z-40 mt-1 w-32 overflow-hidden rounded-xl border border-surface1 bg-base py-1 shadow-xl">
-            <template x-for="g in [1, 3, 5, 7]" :key="g">
-              <button @click="cambiaGiorniVisibili(g); menuGiorni = false"
-                      class="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-surface0">
-                <span x-text="g === 7 ? 'Settimana' : g + ' giorni'"></span>
-                <span x-show="giorniVisibili === g" class="text-mauve">✓</span>
-              </button>
-            </template>
-          </div>
-        </div>
+        <!-- Giorni: pulsante che alterna 5 (Lun–Ven) ↔ 7 (Lun–Dom) -->
+        <button x-show="vista === 'settimana'" @click="toggleGiorniVisibili()"
+                :title="giorniVisibili === 5 ? 'Mostra tutta la settimana (7 giorni)' : 'Mostra solo i giorni di lezione (5, Lun–Ven)'"
+                class="rounded-md border border-surface1 bg-base px-2 py-1.5 text-xs text-text hover:bg-surface0">
+          <span x-text="giorniVisibili === 5 ? '🗓 5gg' : '🗓 7gg'"></span>
+        </button>
 
         <!-- Vista: dropdown custom -->
         <div class="relative" @click.outside="menuVista = false">
@@ -359,6 +350,46 @@
       </div>
     </template>
   </main>
+
+  <!-- ==================== GUIDA INSTALLAZIONE PWA ==================== -->
+  <template x-if="mostraInstallGuida">
+    <div class="fixed inset-0 z-50 flex items-end justify-center bg-crust/60 p-0 sm:items-center sm:p-4"
+         @click.self="mostraInstallGuida = false">
+      <div class="w-full max-w-md rounded-t-2xl border border-surface0 bg-base p-5 sm:rounded-2xl">
+        <h3 class="mb-1.5 text-base font-semibold">Installa l'app per le notifiche</h3>
+        <p class="mb-4 text-sm text-subtext1">
+          Le notifiche push (promemoria e cambi di orario, anche ad app chiusa)
+          arrivano solo alla PWA installata: è il comportamento standard di
+          iPhone, Android e desktop.
+        </p>
+
+        <!-- via diretta (Chrome/Edge/Android con beforeinstallprompt) -->
+        <button x-show="installEvt" @click="installNow()"
+                class="mb-2 w-full rounded-xl bg-mauve px-4 py-2.5 text-sm font-medium text-crust hover:opacity-90">
+          ▶ Installa ora
+        </button>
+
+        <!-- istruzioni manuali (iOS e browser senza prompt) -->
+        <div x-show="!installEvt" class="rounded-xl border border-surface0 bg-mantle p-3 text-sm text-subtext1">
+          <template x-if="isiOS">
+            <p>iPhone/iPad: tocca <strong class="text-text">⬆︎ Condividi</strong> nella barra
+              e poi <strong class="text-text">“Aggiungi a schermata Home”</strong>.</p>
+          </template>
+          <template x-if="!isiOS">
+            <p>Dal menu del browser (<strong class="text-text">⋮</strong> o <strong class="text-text">⋯</strong>)
+              scegli <strong class="text-text">“Installa app”</strong> o
+              <strong class="text-text">“Aggiungi a schermata Home”</strong>.</p>
+          </template>
+        </div>
+
+        <div class="mt-4 flex items-center justify-between text-xs">
+          <button @click="mostraInstallGuida = false" class="text-subtext0 hover:text-text">Più tardi</button>
+          <button x-show="installEvt" @click="mostraInstallGuida = false"
+                  class="text-subtext0 hover:text-text">Dopo l'installazione, riapri da Home</button>
+        </div>
+      </div>
+    </div>
+  </template>
 
   <!-- ============================ DETTAGLIO ============================ -->
   <template x-if="dettaglio">

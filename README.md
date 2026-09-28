@@ -20,13 +20,18 @@ come **PWA statica** pubblicabile su GitHub Pages. Nessun server, tutto nel brow
    (una sola richiesta; poi resta salvato sul dispositivo). Il pulsante
    **⟳ Aggiorna elenco** serve solo per ri-sincronizzarlo in futuro.
 2. Segui il wizard: Polo → Dipartimento/Scuola → Corso → Anno.
-3. **Materie**: clicca i pill sopra la griglia per mostrare/nascondere gli
+3. **Materie**: clicca i pill sotto la griglia per mostrare/nascondere gli
    insegnamenti (il colore del pallino è quello dei blocchi in calendario).
 4. Il **titolo in alto** è il calendario corrente: cliccalo per cambiare anno,
    rimuoverlo o aggiungere un altro corso.
-5. **🔔** attiva i promemoria 15 minuti prima della lezione (funziona mentre
-   l'app è aperta/SW vivo; per il recapito ad app chiusa serve push da server,
-   vedi AGENT.md §notifiche). **☀/☾** cambia tema; **⟳** aggiorna le lezioni.
+5. Il calendario parte **sempre da lunedì**: il pulsante **🗓** alterna 5 giorni
+   (Lun–Ven) ↔ 7 giorni (Lun–Dom); **‹ ›** scorrono sempre di una settimana.
+   **☀/☾** cambia tema; **⟳** aggiorna le lezioni.
+6. **🔔 Notifiche push** (promemoria "lezione tra ~15 min" + "calendario
+   aggiornato", recapitate **anche ad app chiusa**): richiede la PWA installata —
+   se non lo è, la campanella guida all'installazione (pulsante diretto dove il
+   browser lo offre). Dietro c'è il cron del Worker: segui `worker/README.md`
+   per attivare KV + VAPID + cron (dopo il primo deploy del Worker aggiornato).
 
 ## Servire in locale (senza python, senza server!)
 
@@ -48,19 +53,22 @@ podman run -d --name lp --net=host docker.io/lightpanda/browser:latest
 node scripts/test-lightpanda.mjs
 ```
 
-## Proxy CORS (Cloudflare Worker)
+## Cloudflare Worker: proxy CORS + push
 
-`www.unich.it` non invia header CORS, quindi il browser non può scaricarne le
-pagine. Lo scraping passa da un **Cloudflare Worker** gratuito che fa da ponte
-(allowlist: solo domini unich.it). **Attivo e configurato**:
+Lo stesso Worker gratuito fa due cose (`worker/worker.js`):
 
-```
-https://unich-proxy.unich.workers.dev   (in js/config.js → CONFIG.workerBase)
-```
+1. **Proxy CORS** per `www.unich.it` (allowlist: solo domini d'ateneo) — senza
+   di esso il browser non può scaricare indice dei corsi e anni.
+2. **Push scheduler** con **Cron ogni 15 min**: un solo fetch Cineca per
+   calendario sottoscritto (dedup tra studenti), confronto hash e invio di
+   Web Push "calendario aggiornato" + promemoria "lezione tra ~15 min"
+   (rispetta le materie nascoste di ciascuno). Recapita **anche ad app chiusa**.
 
-Per rifarlo da zero (o su un altro account): incolla `worker/worker.js` in un
-nuovo Worker e aggiorna `workerBase` — istruzioni in `worker/README.md`.
-Se `workerBase` è vuoto lo scraping è disabilitato (nessun fallback esterno).
+**Attivo**: `https://unich-proxy.unich.workers.dev` (in `js/config.js`).
+Il Worker deployato è però la versione vecchia (solo proxy): per abilitare il
+push followa `worker/README.md` (incollare il nuovo codice + KV namespace +
+chiavi VAPID + cron trigger, ~5 minuti, sempre gratis). Se `workerBase` è
+vuoto lo scraping è disabilitato (nessun fallback esterno).
 
 ## Deploy: GitHub Pages o Cloudflare Pages (indifferenti)
 

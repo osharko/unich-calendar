@@ -5,8 +5,9 @@
  *  - Wizard a step (Polo → Dipartimento → Corso → Anno) aperto quando serve.
  *  - Un calendario "corrente" per volta: il titolo in alto apre un menu a
  *    tendina per cambiare anno/aggiungerne altri.
- *  - Le materie si attivano/disattivano cliccando i "pill" sopra la griglia.
- *  - Notifiche locali 15 min prima della lezione (attivabili dalla topbar).
+ *  - Le materie si attivano/disattivano cliccando i "pill" cliccabili (sotto la griglia).
+ *  - Notifiche push reali via Worker (promemoria + cambi calendario); camapana
+ *    in topbar che guida all'installazione della PWA quando serve.
  */
 const NUM_COLORI = CONFIG.numColori;
 
@@ -50,17 +51,20 @@ function unichApp() {
     lezioni: [],              // solo del calendario corrente
     da: null, a: null,
     vista: 'settimana',
-    giorniVisibili: 5,
+    giorniVisibili: 5,       // 5 = Lun–Ven, 7 = Lun–Dom (toggle col pulsante)
     menuVista: false,   // dropdown custom Orizzontale/Mese
-    menuGiorni: false,  // dropdown custom 1/3/5/7 giorni
     dataRif: new Date(),
     giorni: [], ore: [],
     oraMin: 8, oraMax: 20,
     nascondiAnnullati: true,
 
-    // --- notifiche ---
-    permNotifiche: 'unsupported', // default|granted|denied|unsupported
+    // --- notifiche push ---
+    permNotifiche: 'unsupported', // granted|denied|default|unsupported
     notificheOn: false,
+    pwaAtiva: false,              // app installata (push richiede standalone)
+    installEvt: null,             // beforeinstallprompt (se il browser lo offre)
+    mostraInstallGuida: false,    // modale di installazione
+    _pushTimer: null,             // debounce sync preferenze
 
     dettaglio: null,
     tema: 'auto',
@@ -97,13 +101,33 @@ function unichApp() {
 
       if (this.correnteId) {
         this.caricaLezioniCorrente();
-        if (navigator.onLine !== false) this.aggiornaLezioni({ silenzioso: true });
+        // Niente refresh "alla cieca" all'avvio: ci si aggiorna solo se un push
+        // 'changed' del Worker è più recente della cache locale (vedi notify.js).
+        this.verificaCambioDaPush();
       }
 
-      // Notifiche
-      this.permNotifiche = initNotifiche();
-      if (this.notificheOn && this.permNotifiche === 'granted') {
-        sincronizzaNotifiche([]); // riprogramma da cache appena pronto
+      // Notifiche: stato reale al boot (senza toccare nulla).
+      this.permNotifiche = statoPermesso();
+      this.pwaAtiva = pwaInstallata();
+      addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        this.installEvt = e;
+      });
+      addEventListener('appinstalled', () => {
+        this.pwaAtiva = true;
+        this.installEvt = null;
+        this.messaggio = 'App installata ✓. Ora puoi attivare le notifiche (🔔).';
+        setTimeout(() => (this.messaggio = null), 7000);
+      });
+      // Il Worker, via service worker, avvisa quando un calendario è cambiato.
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('message', (e) => {
+          if (e.data?.type === 'unich:changed') {
+            this.messaggio = 'Un calendario è cambiato: in aggiornamento…';
+            this.caricaLezioniCorrente();
+            this.aggiornaLezioni({ silenzioso: true });
+          }
+        });
       }
     },
 
@@ -239,6 +263,7 @@ function unichApp() {
           ({ linkCalendarioId, etichetta, corso, materieVisibili })),
         correnteId: this.correnteId,
       });
+      this.schedulePushSync();   // push: porta calendari/materie al Worker
     },
 
     /* ============================= lezioni ============================= */
@@ -247,7 +272,6 @@ function unichApp() {
       const l = this.correnteId ? store.getLezioni(this.correnteId) : null;
       this.lezioni = l || [];
       this.ricalcola();
-      this.syncNotifiche();
     },
 
     async aggiornaLezioni(opts = {}) {
@@ -265,7 +289,6 @@ function unichApp() {
           this.lezioni = lez;
           this.ricalcola();
           this._saltaAllaPrimaLezione();
-          this.syncNotifiche();
         }
         if (!opts.silenzioso) {
           this.messaggio = `Aggiornate ${lez.length} voci.`;
@@ -331,7 +354,6 @@ function unichApp() {
       s.materieVisibili = visibili.size === tutte.size ? null : [...visibili];
       this.salvaSelezioni();
       this.ricalcola();
-      this.syncNotifiche();
     },
 
     /** true → tutte visibili; false → nessuna. */
@@ -341,7 +363,6 @@ function unichApp() {
       s.materieVisibili = null;
       this.salvaSelezioni();
       this.ricalcola();
-      this.syncNotifiche();
     },
 
     /* ============================= griglia ============================= */
@@ -406,10 +427,11 @@ function unichApp() {
     },
 
     /* ========================= navigazione data ======================== */
+    /** ‹ › scorrono SEMPRE di una settimana intera (7 giorni), anche in 5gg. */
     vai(direzione) {
       this.dataRif = this.vista === 'mese'
         ? aggiungiMesi(this.dataRif, direzione)
-        : aggiungiGiorni(this.dataRif, direzione * this.giorniVisibili);
+        : aggiungiGiorni(this.dataRif, direzione * 7);
       this.ricalcola();
     },
     oggi() { this.dataRif = new Date(); this.ricalcola(); },
@@ -418,64 +440,105 @@ function unichApp() {
       store.setStato({ ...store.getStato(), vista: v });
       this.ricalcola();
     },
-    cambiaGiorniVisibili(n) {
-      this.giorniVisibili = Number(n);
+    /** Pulsante: alterna 5 giorni (Lun–Ven) ↔ 7 giorni (Lun–Dom). */
+    toggleGiorniVisibili() {
+      this.giorniVisibili = this.giorniVisibili === 5 ? 7 : 5;
       store.setStato({ ...store.getStato(), giorniVisibili: this.giorniVisibili });
       this.ricalcola();
     },
 
-    /* ============================== notifiche ========================== */
-    get titleNotifiche() {
-      if (this.permNotifiche === 'unsupported') return 'Notifiche non supportate';
-      if (this.permNotifiche === 'denied') return 'Permesso notifiche negato (riattivalo dal browser)';
-      return this.notificheOn ? 'Notifiche attive: disattiva' : 'Attiva promemoria 15 min prima';
+    /* ============================ piattaforma ========================== */
+    get isiOS() {
+      const ua = navigator.userAgent || '';
+      return /iP(hone|ad|od)/.test(ua) ||
+        (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
     },
-    /** Stato: off/on/bloccate; al click chiede il permesso e attiva. */
+    /** Il browser supporterebbe il push, ma manca l'installazione PWA. */
+    get pushProntaMaNonInstallata() {
+      try { return pushDisponibile() && !this.pwaAtiva; } catch { return false; }
+    },
+
+    /* ============================== notifiche ==========================
+     * Web Push reale tramite il Worker (cron 15 min):
+     *  - "lezione tra ~15 min" (dedup server, rispetta le materie visibili);
+     *  - "calendario cambiato" quando l'hash Cineca muta.
+     * La campanella fa da gate: se la PWA non è installata apre la guida
+     * (con "Installa ora" diretto quando il browser offre beforeinstallprompt).
+     * ------------------------------------------------------------------- */
+    get titleNotifiche() {
+      if (!pushDisponibile()) return 'Notifiche push non supportate da questo browser';
+      if (this.notificheOn) return 'Notifiche attive: tocca per disattivare';
+      if (!this.pwaAtiva) return 'Installa l\'app (PWA) per ricevere le notifiche';
+      return 'Attiva notifiche (promemoria + cambi calendario)';
+    },
+
+    /** Preferenze da inviare al Worker: calendari + materie visibili. */
+    prefsPush() {
+      return {
+        calendars: this.selezioni.map((s) => ({
+          i: s.linkCalendarioId, l: s.etichetta, n: s.corso, m: s.materieVisibili,
+        })),
+      };
+    },
+
     async toggleNotifiche() {
-      if (!('Notification' in window) || !('serviceWorker' in navigator)) {
-        this.errore = 'Notifiche non supportate da questo browser.';
+      if (!pushDisponibile()) {
+        this.errore = 'Notifiche push non supportate da questo browser.';
         return;
       }
       if (this.notificheOn) {
         this.notificheOn = false;
         store.setStato({ ...store.getStato(), notifiche: false });
-        this.syncNotifiche();
+        try { await pushDisattiva(); } catch { /* ignora */ }
+        this.messaggio = 'Notifiche disattivate.';
+        setTimeout(() => (this.messaggio = null), 4000);
         return;
       }
-      let perm = Notification.permission;
-      if (perm === 'default') {
-        this.permNotifiche = await chiediPermesso(); // chiede il permesso
-        perm = this.permNotifiche;
+      this.pwaAtiva = pwaInstallata();
+      if (!this.pwaAtiva) { this.mostraInstallGuida = true; return; }
+      if (!CONFIG.workerBase) { this.errore = 'Proxy/Worker non configurato.'; return; }
+      try {
+        await pushAttiva(this.prefsPush());
+        this.notificheOn = true;
+        this.permNotifiche = 'granted';
+        store.setStato({ ...store.getStato(), notifiche: true });
+        this.messaggio = 'Notifiche attive: promemoria e cambi, anche ad app chiusa.';
+        setTimeout(() => (this.messaggio = null), 5000);
+      } catch (e) {
+        this.permNotifiche = Notification.permission;
+        this.errore = `Attivazione notifiche fallita: ${e.message}`;
       }
-      if (perm !== 'granted') {
-        this.errore = 'Permesso notifiche negato: riattivalo dalle impostazioni del browser.';
-        return;
-      }
-      this.permNotifiche = 'granted';
-      this.notificheOn = true;
-      store.setStato({ ...store.getStato(), notifiche: true });
-      this.syncNotifiche();
-      this.messaggio = 'Notifiche attivate: promemoria 15 minuti prima della lezione.';
-      setTimeout(() => (this.messaggio = null), 4000);
     },
 
-    syncNotifiche() {
-      if (!this.notificheOn) { sincronizzaNotifiche([]); return; }
-      const ora = Date.now();
-      const fine = ora + CONFIG.orizzonteNotificheMs;
-      const items = this.lezioniFiltrate
-        .filter((l) => !l.indisponibilita && l.stato !== 'A')
-        .map((l) => ({
-          id: l.id,
-          titolo: l.insegnamento,
-          inizio: new Date(l.inizio).toISOString(),
-          aula: l.aule.map((a) => a.codice || a.descrizione).join(', '),
-        }))
-        .filter((x) => {
-          const t = new Date(x.inizio).getTime() - CONFIG.anticipoNotificaMs;
-          return t > ora && new Date(x.inizio).getTime() < fine;
-        });
-      sincronizzaNotifiche(items);
+    /** Installazione diretta (Chrome/Edge/Android); su iOS resta la guida. */
+    async installNow() {
+      if (!this.installEvt) return;
+      this.installEvt.prompt();
+      try { await this.installEvt.userChoice; } catch { /* ignora */ }
+      this.installEvt = null;
+    },
+
+    /** Debounce: risincronizza le preferenze sul Worker dopo cambi locali. */
+    schedulePushSync() {
+      if (!this.notificheOn) return;
+      clearTimeout(this._pushTimer);
+      this._pushTimer = setTimeout(() => {
+        pushSincronizzaPrefs(this.prefsPush())
+          .catch((e) => console.warn('[push] sync prefs:', e?.message));
+      }, 2500);
+    },
+
+    /**
+     * Sostituisce l'auto-refresh all'avvio: apre la cache, e aggiorna solo se
+     * il meta scritto dal push 'changed' è più recente dell'ultimo sync.
+     */
+    async verificaCambioDaPush() {
+      if (!this.correnteId) return;
+      const meta = await leggiUltimoCambio();
+      if (!meta?.at) return;
+      const cache = store.getCache()[this.correnteId];
+      const eta = cache?.aggiornatoIl ? new Date(cache.aggiornatoIl).getTime() : 0;
+      if (meta.at > eta) this.aggiornaLezioni({ silenzioso: true });
     },
 
     /* ============================ dettaglio ============================ */
