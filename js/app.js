@@ -109,6 +109,15 @@ function unichApp() {
       // Notifiche: stato reale al boot (senza toccare nulla).
       this.permNotifiche = statoPermesso();
       this.pwaAtiva = pwaInstallata();
+
+      // SELF-HEAL a ogni apertura (niente più reinstallazioni manuali):
+      //  1) forza il controllo di aggiornamento del service worker;
+      //  2) con notifiche attive: risincronizza le prefs verso il Worker e
+      //     ri-sottoscrivi se la subscription è persa (reinstall/reset permessi).
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration().then((r) => r?.update?.()).catch(() => {});
+      }
+      if (this.notificheOn) this.riprendiPush();
       addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         this.installEvt = e;
@@ -533,6 +542,26 @@ function unichApp() {
         pushSincronizzaPrefs(this.prefsPush())
           .catch((e) => console.warn('[push] sync prefs:', e?.message));
       }, 2500);
+    },
+
+    /**
+     * Ri-allaccia il push all'avvio senza interventi manuali:
+     *  - se la subscription c'è → re-invia le prefs (calendari/materie) al Worker;
+     *  - se è sparita (reinstallazione PWA, reset permessi) ma il permesso è
+     *    ancora 'granted' → si ri-sottoscrive in silenzio.
+     */
+    async riprendiPush() {
+      if (!pushDisponibile() || !CONFIG.workerBase) return;
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) await pushSincronizzaPrefs(this.prefsPush());
+        else if (pwaInstallata() && Notification.permission === 'granted') {
+          await pushAttiva(this.prefsPush());
+        }
+      } catch (e) {
+        console.warn('[push] self-heal:', e?.message);
+      }
     },
 
     /**

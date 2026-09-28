@@ -11,7 +11,7 @@
  *      e avvisiamo i client aperti (postMessage) così l'app si auto-rinfresca.
  *    I vecchi timer locali sono rimossi: il promemoria lo decide il server.
  */
-const VERSIONE = 'unich-v12';
+const VERSIONE = 'unich-v13';
 const SHELL = [
   './',
   './index.html',
