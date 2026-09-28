@@ -1,4 +1,4 @@
 {
   "_commente": "File-sentinella per testare il canale Web Push. Il cron del Worker ne confronta il contenuto: se 'message' cambia, al prossimo giro (≤15 min) tutti gli abbonati ricevono una notifica di test col nuovo testo. Metti un messaggio VUOTO ('message': '') per disattivare i broadcast senza perdere la baseline. Il primo avvio dopo il deploy del worker è 'baseline': non notifica.",
-  "message": "Notifica #10: prova post-aggiornamento app ✔"
+  "message": "Notifica #11: padding fix (se arriva è risolto) 🎯"
 }
