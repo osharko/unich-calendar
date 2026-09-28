@@ -1,12 +1,8 @@
-# wrangler.toml — deploy del Worker con CLI (alternativa alla dashboard)
+# Deploy del Worker unich-proxy (proxy CORS + push cron).
+# Richiede: CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID (nel .env in root).
 #
-#   npm i -g wrangler && wrangler login
-#   wrangler kv namespace create unich-push   # incolla l'id nel [[kv_namespaces]]
-#   wrangler secret put VAPID_PRIVATE          # JWK di scripts/gen-vapid.mjs
-#   wrangler secret put VAPID_SUBJECT          # mailto:una-tua@email.it
-#   wrangler deploy
-#
-# La variabile non segreta VAPID_PUBLIC sta in [vars] sotto.
+#   npx wrangler deploy          # codice + bindings + cron (i secret restano)
+#   npx wrangler secret put CRON_SECRET   # opzionale, per /tick manuale
 
 name = "unich-proxy"
 main = "worker.js"
@@ -17,11 +13,12 @@ enabled = true
 
 [[kv_namespaces]]
 binding = "PUSH"
-id = "INCOLLA_L_ID_DOPO_kv_namespace_create"
+id = "754c8207197d4fd99ab0f7e342f9e555"
 
 [triggers]
 crons = ["*/15 * * * *"]
 
 [vars]
 VAPID_PUBLIC = "BIGT-2PCL-yPuN9PQ-IgxxTjqAMrcem8iRMVKmS_aPS24PzU0XczbiYyAhn69W66eVAGEMoJT9yC4vfheSzH5sc"
-# VAPID_SUBJECT e CRON_SECRET: mettili come SECRET, non qui.
+VAPID_SUBJECT = "mailto:luigi.minopoli@studenti.unich.it"
+# VAPID_PRIVATE è un SECRET (non va qui). CRON_SECRET pure.

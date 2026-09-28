@@ -301,10 +301,13 @@ async function runTick(env) {
  * broadcast di test a tutti gli abbonati. Serve a verificare la pipeline
  * push senza dipendere da Cineca. Primo giro = baseline (non notifica). */
 async function checkTestMessage(env, subs, report) {
-  const url = env.TEST_URL ||
+  const base = env.TEST_URL ||
     'https://raw.githubusercontent.com/osharko/unich-calendar/main/notification/test.json';
+  // Cache-buster: il CDN di GitHub (Fastly) serve copie stale ~5 min e ignora
+  // i nostri header no-cache; senza ?cb il tick non vedrebbe il cambiamento.
+  const url = base + (base.includes('?') ? '&' : '?') + 'cb=' + Date.now();
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'unich-proxy-test', 'Cache-Control': 'no-cache' },
+    headers: { 'User-Agent': 'unich-proxy-test' },
     cf: { cacheTtl: 0, cacheEverything: false },
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
