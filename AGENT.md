@@ -328,7 +328,11 @@ gate e apre la guida/installazione diretta con `beforeinstallprompt`).
     "lezione tra 15 min" (dedup per evento in KV `rem:<id>`, TTL 2 gg, e
     rispetto delle materie nascoste di ciascuno). Subscription morte (404/410)
     auto-rimosse.
-  - Crittografia Web Push **RFC 8291 (aes128gcm)** implementata con WebCrypto
+  - **Canale di prova**: `notification/test.json` nel repo — il cron ne confronta
+  l'hash (fetch isolato in try/catch, mai bloccante per Cineca): se il `message`
+  cambia, broadcast `🔔 Notifica di test` a tutti gli abbonati. Primo giro =
+  baseline silenziosa; `message` vuoto = nessun invio.
+- Crittografia Web Push **RFC 8291 (aes128gcm)** implementata con WebCrypto
     pura nel Worker (nessuna dipendenza); JWT VAPID ES256.
   - Debug: `GET /tick` e `GET /subs` con header `x-cron-secret`.
 - **Deploy/setup**: vedi `worker/README.md` + `worker/wrangler.toml`. Richiesti:

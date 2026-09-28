@@ -62,3 +62,17 @@ Il client (PWA) chiama `/subscribe` da solo quando l'utente attiva 🔔
 - Il cron costa 1 richiesta KV + 1 fetch Cineca per calendario: con 30 corsi
   sottoscritti = ~2 richieste/min in media, ben dentro i limiti free.
 - Sottoscrizioni morte (endpoint 404/410) vengono rimosse automaticamente.
+
+
+## Canale di prova (notifiche test senza Cineca)
+
+Nel repo c'è `notification/test.json` con un campo `message`. Il cron del Worker,
+in **completa indipendenza** dai controlli Cineca (un try/catch separato), lo
+legge da raw.githubusercontent: se l'hash del file cambia rispetto al giro
+precedente, fa un **broadcast di test** a tutti gli abbonati col nuovo testo.
+
+- Primo tick dopo deploy: salvata come *baseline*, non notifica.
+- Modifichi `message` su GitHub → entro 15 min (o subito con `curl /tick`) arriva
+  `🔔 Notifica di test: <message>` a chi ha il push attivo.
+- `message` vuoto = nessun invio (ma baseline aggiornata).
+- URL file sovrascrivibile con la variabile `TEST_URL` (se cambi repo/branch).

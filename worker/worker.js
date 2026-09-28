@@ -167,25 +167,29 @@ function sanitizePrefs(prefs) {
 async function runTick(env) {
   if (!env.PUSH) return { errore: 'KV non configurato' };
   const subs = await loadSubs(env);
-  if (!subs.length) return { subs: 0 };
-
-  // 1) dedup: calendario → fetch Cineca UNA volta sola
-  const calIds = [...new Set(subs.flatMap((s) => s.prefs.calendars.map((c) => c.id)))];
-  const report = { subs: subs.length, calendari: calIds.length, cambiati: [], reminder: [], errori: [] };
   const now = Date.now();
+  const report = { subs: subs.length, calendari: 0, cambiati: [], reminder: [], test: null, errori: [] };
+
   const eventiPerCal = new Map();
 
-  for (const calId of calIds) {
-    try {
-      const eventi = await fetchEventi(calId, now);
-      const hash = hashEventi(eventi);
-      const prev = await env.PUSH.get('hash:' + calId);
-      eventiPerCal.set(calId, { eventi, hash, cambiato: !!prev && prev !== hash, primoGiro: !prev });
-      if (!prev || prev !== hash) await env.PUSH.put('hash:' + calId, hash, { expirationTtl: 60 * 86400 });
-      if (eventiPerCal.get(calId).cambiato) report.cambiati.push(calId);
-    } catch (e) {
-      report.errori.push(`cal ${calId}: ${e.message}`);
+  // --- 1) controlli Cineca (dedup per calendario). Un errore NON blocca il resto.
+  try {
+    const calIds = [...new Set(subs.flatMap((s) => s.prefs.calendars.map((c) => c.id)))];
+    report.calendari = calIds.length;
+    for (const calId of calIds) {
+      try {
+        const eventi = await fetchEventi(calId, now);
+        const hash = hashStr(JSON.stringify(eventi.map((e) => `${e.id}|${e.in}|${e.fi}|${e.st}|${e.au}|${e.mk.join(',')}`)));
+        const prev = await env.PUSH.get('hash:' + calId);
+        eventiPerCal.set(calId, { eventi, hash, cambiato: !!prev && prev !== hash });
+        if (!prev || prev !== hash) await env.PUSH.put('hash:' + calId, hash, { expirationTtl: 60 * 86400 });
+        if (eventiPerCal.get(calId).cambiato) report.cambiati.push(calId);
+      } catch (e) {
+        report.errori.push(`cal ${calId}: ${e.message}`);
+      }
     }
+  } catch (e) {
+    report.errori.push(`cineca: ${e.message}`);
   }
 
   // 2) per ogni sottoscrizione: cambio calendario + reminder (rispettando le materie)
@@ -246,7 +250,58 @@ async function runTick(env) {
     }
   }
   for (const id of sentGone) await env.PUSH.delete('sub:' + id);
+
+  // 3) CANALE DI PROVA: confronta notification/test.json su GitHub.
+  //    Isolatissimo: se fallisce, i controlli Cineca sopra restano validi.
+  try {
+    await checkTestMessage(env, subs, report);
+  } catch (e) {
+    report.errori.push(`check test: ${e.message}`);
+    report.test = 'errore';
+  }
+
   return report;
+}
+
+/* ------------------------- notifica di prova ---------------------------
+ * File-sentinella nel repo (notification/test.json): il cron ne confronta
+ * l'hash; se il "message" è CAMBIATO rispetto al giro precedente, fa un
+ * broadcast di test a tutti gli abbonati. Serve a verificare la pipeline
+ * push senza dipendere da Cineca. Primo giro = baseline (non notifica). */
+async function checkTestMessage(env, subs, report) {
+  const url = env.TEST_URL ||
+    'https://raw.githubusercontent.com/osharko/unich-calendar/main/notification/test.json';
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'unich-proxy-test', 'Cache-Control': 'no-cache' },
+    cf: { cacheTtl: 0, cacheEverything: false },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const text = await res.text();
+  let msg = '';
+  try { msg = String(JSON.parse(text).message ?? '').trim(); }
+  catch { msg = text.trim().slice(0, 200); }
+
+  const hash = hashStr(text);
+  const prev = await env.PUSH.get('hashtest');
+  await env.PUSH.put('hashtest', hash, { expirationTtl: 60 * 86400 });
+
+  if (!prev)        { report.test = 'baseline (prima volta: non notifica)'; return; }
+  if (prev === hash){ report.test = 'invariato'; return; }
+  if (!msg)         { report.test = 'cambiato ma vuoto: non invio'; return; }
+
+  let inviati = 0;
+  for (const s of subs) {
+    try {
+      const r = await sendPush(env, s, JSON.stringify({
+        type: 'test', title: '🔔 Notifica di test', body: msg, tag: 'test-' + hash,
+      }));
+      if (r === 'gone') await env.PUSH.delete('sub:' + s.id);
+      else inviati++;
+    } catch (e) {
+      report.errori.push(`test sub ${s.id?.slice(0, 6)}: ${e.message}`);
+    }
+  }
+  report.test = `cambiato → inviato a ${inviati}/${subs.length}`;
 }
 
 /* ==================== fetch eventi Cineca (dedup) ==================== */
@@ -283,9 +338,8 @@ async function fetchEventi(linkCalendarioId, now) {
   return eventi;
 }
 
-/** Hash FNV-1a stabile dello snapshot. */
-function hashEventi(eventi) {
-  const s = eventi.map((e) => `${e.id}|${e.in}|${e.fi}|${e.st}|${e.au}|${e.mk.join(',')}`).join('\n');
+/** Hash FNV-1a stabile di una stringa. */
+function hashStr(s) {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
   return String(h >>> 0) + ':' + s.length;

@@ -24,6 +24,10 @@ come **PWA statica** pubblicabile su GitHub Pages. Nessun server, tutto nel brow
    insegnamenti (il colore del pallino è quello dei blocchi in calendario).
 4. Il **titolo in alto** è il calendario corrente: cliccalo per cambiare anno,
    rimuoverlo o aggiungere un altro corso.
+   ⚠️ Su **iOS** non esiste il pulsante "Installa ora" (Apple non implementa
+   `beforeinstallprompt`): la guida mostra i passi manuali *Condividi →
+   Aggiungi a schermata Home*; l'icona corretta è già servita via
+   `apple-touch-icon` (180px, opaca).
 5. Il calendario parte **sempre da lunedì**: il pulsante **🗓** alterna 5 giorni
    (Lun–Ven) ↔ 7 giorni (Lun–Dom); **‹ ›** scorrono sempre di una settimana.
    **☀/☾** cambia tema; **⟳** aggiorna le lezioni.

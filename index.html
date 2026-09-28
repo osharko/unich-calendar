@@ -8,7 +8,14 @@
 <meta name="theme-color" content="#1e1e2e">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<!-- iOS: icona apple-touch OPACA 180×180 (senza transparency) + meta per
+     l'installazione da "Aggiungi a schermata Home" ( Safari ignora
+     beforeinstallprompt: l'unico modo è manuale, e questi tag lo migliorano) -->
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lezioni Ud'A">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 
@@ -372,8 +379,11 @@
         <!-- istruzioni manuali (iOS e browser senza prompt) -->
         <div x-show="!installEvt" class="rounded-xl border border-surface0 bg-mantle p-3 text-sm text-subtext1">
           <template x-if="isiOS">
-            <p>iPhone/iPad: tocca <strong class="text-text">⬆︎ Condividi</strong> nella barra
-              e poi <strong class="text-text">“Aggiungi a schermata Home”</strong>.</p>
+            <ol class="list-decimal space-y-1.5 pl-5">
+              <li>Tocca <strong class="text-text">⬆︎ Condividi</strong> nella barra di Safari</li>
+              <li>Scorri e tocca <strong class="text-text">«Aggiungi a schermata Home»</strong></li>
+              <li>Apri l'app dalla Home e tocca di nuovo <strong class="text-mauve">🔔</strong></li>
+            </ol>
           </template>
           <template x-if="!isiOS">
             <p>Dal menu del browser (<strong class="text-text">⋮</strong> o <strong class="text-text">⋯</strong>)

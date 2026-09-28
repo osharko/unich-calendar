@@ -11,7 +11,7 @@
  *      e avvisiamo i client aperti (postMessage) così l'app si auto-rinfresca.
  *    I vecchi timer locali sono rimossi: il promemoria lo decide il server.
  */
-const VERSIONE = 'unich-v11';
+const VERSIONE = 'unich-v12';
 const SHELL = [
   './',
   './index.html',
@@ -26,6 +26,7 @@ const SHELL = [
   './js/notify.js',
   './js/app.js',
   './icons/favicon.svg',
+  './icons/apple-touch-icon.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
 ];
