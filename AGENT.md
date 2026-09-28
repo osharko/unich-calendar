@@ -378,6 +378,21 @@ Per la verifica visiva usare un browser reale.
 
 ## 5. Sviluppo
 
+### Rilascio (deploy)
+
+Ogni push su `main` è automaticamente deployato da GitHub Pages. Prima di un
+rilascio rigenerare il marcatore di versione (il footer mostra quello):
+
+```bash
+node scripts/bump-version.mjs                       # (ri)scrive js/version.js
+git add js/version.js && git commit -m "chore(release)" && git push
+```
+
+Il Worker si deploya dal repo: `cd worker && npx wrangler deploy`
+(cron e bindings in `worker/wrangler.toml`; i secret sopravvivono al deploy).
+Test notifiche: modifica `message` in `notification/test.json` → entro 15 min
+(cron) o subito con `curl -H "x-cron-secret: …" …/tick`.
+
 Requisiti: nessun Node/npm obbligatorio. Per ricompilare il CSS serve il
 **Tailwind standalone CLI** (binario singolo):
 
