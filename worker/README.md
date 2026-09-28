@@ -2,12 +2,14 @@
 
 Un unico Worker gratis fa due cose:
 1. **proxy CORS** per `www.unich.it` (lo scraping della PWA);
-2. **push scheduler**: ogni 15 min chiama l'API Cineca **una sola volta per
-   calendario sottoscritto** (dedup: 100 studenti sullo stesso corso = 1 fetch),
-   calcola l'hash degli eventi prossimi e, se cambia, manda un
-   `Web Push` "calendario aggiornato" a chi è sottoscritto; invia anche il
-   promemoria "lezione tra ~15 min" (dedup per evento, nel rispetto delle
-   materie nascoste da ogni studente).
+2. **Push scheduler (cron 15 min)**: chiama l'API Cineca **una sola volta per
+   calendario sottoscritto** (dedup: 100 studenti sullo stesso corso = 1
+   fetch). **Non è un confronto di hash grezzo** (notificherebbe ogni giorno
+   per il semplice scorrere della finestra): fa un **diff semantico** sulle
+   sole lezioni *future* → notifica solo per aggiunte/annullamenti/spostamenti
+   d'orario o aula. Anti-flap (>60% sparite = guasto Cineca: tace e congela lo
+   snapshot), targeting per materie nascoste, reminder 8–25 min con dedup.
+   Invia anche il canale di test `notification/test.json` (in isolamento).
 
 ## Prerequisiti (una tantum)
 

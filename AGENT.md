@@ -321,13 +321,23 @@ gate e apre la guida/installazione diretta con `beforeinstallprompt`).
 - **Worker** `worker/worker.js` (estensione dell'unich-proxy):
   - `POST /subscribe` / `POST /unsubscribe`: salva in KV (`sub:<sha256(endpoint)>`)
     subscription + preferenze (`calendari: [{id, label, corso, materieVisibili}]`);
-  - **Cron `ogni 15 min`** (`scheduled`): per ogni calendario sottoscritto fa
-    **UNA sola chiamata Cineca** (dedup tra studenti → scalabile), calcola
-    l'hash degli eventi prossimi (8 gg); se l'hash cambia → push
-    "calendario aggiornato"; gli eventi in partenza tra ~8 e ~25 min → push
-    "lezione tra 15 min" (dedup per evento in KV `rem:<id>`, TTL 2 gg, e
-    rispetto delle materie nascoste di ciascuno). Subscription morte (404/410)
-    auto-rimosse.
+  - **Cron `ogni 15 min`** (`scheduled` → `runTick`): per ogni calendario
+    sottoscritto fa **UNA sola chiamata Cineca** (dedup: 100 studenti sullo
+    stesso corso = 1 fetch). Il confronto NON è un hash grezzo dello snapshot
+    (che sparerebbe un "cambiato" ogni giorno perché le lezioni passano
+    fuori finestra!) ma un **diff semantico** tra snapshot normalizzati in KV
+    (`snap:<calId>`) limitati alle **sole lezioni future** (`diffEventi`):
+    aggiunte / annullate (sparite o stato A) / spostate (orario, aula, stato).
+    Difese anti-bombardamento:
+      * **anti-flap**: se sparisce >60% del futuro ⇒ probabile guasto Cineca ⇒
+        zero notifiche e snapshot CONGELATO (il ripristino non fa allerte);
+      * **targeting per materia**: la "changed" non arriva a chi ha nascosto
+        la materia coinvolta;
+      * **reminder** (finestra 8–25 min): dedup per evento in KV (`rem:<id>`,
+        TTL 2 gg), max 1 changed + 2 reminder per abbonato a giro;
+      * subscription morte (404/410) auto-rimosse; try/catch separati per
+        area: Cineca rotto ≠ test channel rotto ≠ niente reminder.
+    Seam per i test: orologio iniettabile (`env.__NOW`) → harness 11/11.
   - **Canale di prova**: `notification/test.json` nel repo — il cron ne confronta
   l'hash (fetch isolato in try/catch, mai bloccante per Cineca): se il `message`
   cambia, broadcast `🔔 Notifica di test` a tutti gli abbonati. Primo giro =
@@ -420,7 +430,9 @@ node scripts/serve.mjs 8000      # server statico zero-dipendenze
 - [x] Test E2E con Lightpanda (scripts/test-lightpanda.mjs, 13 asserzioni)
 - [x] Repo GitHub + deploy Pages (branch main /) o Cloudflare Pages
 - [x] Notifiche locali (timer SW, 15 min prima, toggle in topbar)
-- [ ] Web Push reali via Cloudflare Cron + VAPID (recapito ad app chiusa)
+- [x] Web Push reali via Cloudflare Cron + VAPID (recapito ad app chiusa)
+      — codice pronto e verificato con harness; richiede il ri-deploy del
+      worker aggiornato (notification/test.json per il collaudo end-to-end)
 - [ ] Filtri aggiuntivi (docente, aula) e ricerca nel calendario
 - [ ] Test su corsi/anni diversi (requisito 3)
 - [ ] Install prompt PWA e rifiniture accessibilità (ARIA, tastiera)
