@@ -251,8 +251,8 @@ async function runTick(env) {
           await env.PUSH.put('rem:' + ev.id, '1', { expirationTtl: 2 * 86400 });
           const ora = new Date(ev.in).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
           msgs.push({
-            title: `Lezione tra ~${Math.round(mins)} min`,
-            body: `${ev.nome} · ore ${ora}${ev.au ? ' · ' + ev.au : ''}`,
+            title: 'Unich-calendar',
+            body: `Tra ~${Math.round(mins)} min: ${ev.nome}${ev.au ? ' · ' + ev.au : ''} (ore ${ora})`,
             type: 'reminder', cals: [c.id], tag: 'rem-' + ev.id,
           });
           report.reminder.push({ sub: s.id.slice(0, 8), cal: c.id, ev: ev.id });
@@ -328,7 +328,7 @@ async function checkTestMessage(env, subs, report) {
   for (const s of subs) {
     try {
       const r = await sendPush(env, s, JSON.stringify({
-        type: 'test', title: '🔔 Notifica di test', body: msg, tag: 'test-' + hash,
+        type: 'test', title: 'Unich-calendar', body: msg, tag: 'test-' + hash,
       }));
       if (r === 'gone') await env.PUSH.delete('sub:' + s.id);
       else inviati++;
@@ -430,18 +430,25 @@ async function sendPush(env, sub, payloadStr) {
   const authSecret = b64uToBytes(keys.auth);
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const local = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
-  const localPub = new Uint8Array(await crypto.subtle.exportKey('raw', local.publicKey)); // 65 B
+  const localPub = new Uint8Array(await crypto.subtle.exportKey('raw', local.publicKey)); // 65 B (= keyid dell'header)
   const uaKey = await crypto.subtle.importKey('raw', uaPublic, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
-  const ecdhSecret = await crypto.subtle.deriveBits({ name: 'ECDH', public: uaKey }, local.privateKey, 256);
+  const ecdhSecret = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: uaKey }, local.privateKey, 256));
 
-  const ikmInfo = cat(new TextEncoder().encode('WebPush: info\0'), uaPublic, vapid.pubRaw);
-  const ikm = await hkdfExpand(await hkdfExtract(salt, new Uint8Array(ecdhSecret)), ikmInfo, 32);
-  const prk = await hkdfExtract(authSecret, ikm);
+  // RFC 8291 §3.4 — come verificato byte-per-byte contro http_ece (web-push):
+  //   IKM  = Expand(Extract(auth_secret, ecdh_secret), "WebPush: info\0" || ua_public || as_public)
+  //          (as_public = chiave EPHEMERALE del sender, quella nel keyid — NON il VAPID pub)
+  //   PRK  = Extract(salt_header, IKM);  CEK/NONCE = Expand(PRK, "Content-Encoding: …\0")
+  const ikmInfo = cat(new TextEncoder().encode('WebPush: info\0'), uaPublic, localPub);
+  const ikm = await hkdfExpand(await hkdfExtract(authSecret, ecdhSecret), ikmInfo, 32);
+  const prk = await hkdfExtract(salt, ikm);
   const cek = await hkdfExpand(prk, new TextEncoder().encode('Content-Encoding: aes128gcm\0'), 16);
   const nonce = await hkdfExpand(prk, new TextEncoder().encode('Content-Encoding: nonce\0'), 12);
 
   const aesKey = await crypto.subtle.importKey('raw', cek, { name: 'AES-GCM' }, false, ['encrypt']);
-  const pt = cat(new TextEncoder().encode(payloadStr), new Uint8Array([2]));
+  // RFC 8291: plaintext = payload || 0x02 (padding delimiter) || >=1 byte 0x00.
+  // Omettere gli 0x00 finale rende il messaggio MALFORMED: i servizi lo
+  // accettano (201) ma i browser lo scartano in decifratura (silenzioso).
+  const pt = cat(new TextEncoder().encode(payloadStr), new Uint8Array([2]), new Uint8Array(8));
   const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, aesKey, pt);
 
   const rs = new Uint8Array(4); new DataView(rs.buffer).setUint32(0, 4096);
@@ -461,11 +468,12 @@ async function sendPush(env, sub, payloadStr) {
     },
     body,
   });
-  if (res.status === 404 || res.status === 410) return 'gone';
+  if (res.status === 404 || res.status === 410) { console.log('push gone', new URL(endpoint).host); return 'gone'; }
   if (!res.ok) {
     const t = await res.text().catch(() => '');
     throw new Error(`push HTTP ${res.status} ${t.slice(0, 120)}`);
   }
+  console.log('push ok', new URL(endpoint).host, res.status);
   return 'ok';
 }
 
