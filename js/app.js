@@ -453,9 +453,10 @@ function unichApp() {
       return /iP(hone|ad|od)/.test(ua) ||
         (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
     },
-    /** Il browser supporterebbe il push, ma manca l'installazione PWA. */
+    /** Badge "installa": PWA non installata e il push sarebbe possibile
+     *  (iPhone lo offre solo in standalone → va comunque mostrato lì). */
     get pushProntaMaNonInstallata() {
-      try { return pushDisponibile() && !this.pwaAtiva; } catch { return false; }
+      try { return !this.pwaAtiva && (this.isiOS || pushDisponibile()); } catch { return false; }
     },
 
     /* ============================== notifiche ==========================
@@ -466,9 +467,9 @@ function unichApp() {
      * (con "Installa ora" diretto quando il browser offre beforeinstallprompt).
      * ------------------------------------------------------------------- */
     get titleNotifiche() {
-      if (!pushDisponibile()) return 'Notifiche push non supportate da questo browser';
       if (this.notificheOn) return 'Notifiche attive: tocca per disattivare';
       if (!this.pwaAtiva) return 'Installa l\'app (PWA) per ricevere le notifiche';
+      if (!pushDisponibile()) return 'Notifiche push non supportate da questo browser';
       return 'Attiva notifiche (promemoria + cambi calendario)';
     },
 
@@ -482,10 +483,7 @@ function unichApp() {
     },
 
     async toggleNotifiche() {
-      if (!pushDisponibile()) {
-        this.errore = 'Notifiche push non supportate da questo browser.';
-        return;
-      }
+      // disattivazione
       if (this.notificheOn) {
         this.notificheOn = false;
         store.setStato({ ...store.getStato(), notifiche: false });
@@ -494,9 +492,18 @@ function unichApp() {
         setTimeout(() => (this.messaggio = null), 4000);
         return;
       }
+      // GATE 1 — PWA installata. Su iPhone, nella scheda del browser,
+      // Notification/PushManager NON esistono nemmeno: il push web vive solo
+      // nella PWA standalone. Quindi la guida all'installazione deve venire
+      // PRIMA di ogni controllo di supporto, altrimenti su iOS si legge
+      // "non supportato" senza mai mostrare come rimediare.
       this.pwaAtiva = pwaInstallata();
       if (!this.pwaAtiva) { this.mostraInstallGuida = true; return; }
-      if (!CONFIG.workerBase) { this.errore = 'Proxy/Worker non configurato.'; return; }
+      // GATE 2 — capacità reali (in standalone) + Worker configurato
+      if (!pushDisponibile() || !CONFIG.workerBase) {
+        this.errore = 'Notifiche push non supportate da questo browser (o Worker non configurato).';
+        return;
+      }
       try {
         await pushAttiva(this.prefsPush());
         this.notificheOn = true;

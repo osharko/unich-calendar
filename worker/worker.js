@@ -41,6 +41,8 @@ export default {
 
     switch (url.pathname) {
       case '/':
+        ///?url=... È il formato proxy: non rubare la route allo stato!
+        if (url.searchParams.has('url')) return handleProxy(request, url, cors);
         return json({ ok: true, servizio: 'unich-proxy', modalità: 'proxy + push' }, 200, cors);
       case '/subscribe':
         return handleSubscribe(request, env, cors);

@@ -208,9 +208,12 @@ try {
   const cor2 = await ev(`return { id: String(${A}.correnteId).slice(0,6), tot: ${A}.lezioni.length };`);
   ok('switch calendario corrente', cor2.id === '68badd' && cor2.tot > 0, JSON.stringify(cor2));
 
-  // ---- notifiche: degradazione onesta se non supportate ----
-  const notif = await ev(`await ${A}.toggleNotifiche(); return { p: ${A}.permNotifiche, e: String(${A}.errore) !== 'null' };`);
-  ok('fallback notifiche senza crash', notif.p === 'unsupported' && notif.e, JSON.stringify(notif));
+  // ---- gate installazione: Lightpanda non è standalone → deve aprire la guida ----
+  const gate = await ev(`await ${A}.toggleNotifiche();
+    return { guida: ${A}.mostraInstallGuida, on: ${A}.notificheOn, err: String(${A}.errore) };`);
+  ok('gate PWA: la campanella apre la guida installazione',
+    gate.guida === true && gate.on === false && gate.err === 'null', JSON.stringify(gate));
+  await ev(`${A}.mostraInstallGuida = false; return 1;`);
 
   // ---- tema: solo 2 stati ----
   const temi = await ev(`

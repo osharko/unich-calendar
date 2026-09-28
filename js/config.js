@@ -21,7 +21,9 @@ const CONFIG = {
   // e un cron ogni 15 min (promemoria + cambi calendario). Richiede che in
   // js/config.js la chiave sotto coincide con il secret VAPID del Worker.
   workerBase: 'https://unich-proxy.unich.workers.dev',
-  proxy: (url) => `${CONFIG.workerBase}/?url=${encodeURIComponent(url)}`,
+  // Forma "path": funziona anche con deploy precedenti; la forma
+  // "?url=" è sistemata nel worker.js aggiornato (case '/').
+  proxy: (url) => `${CONFIG.workerBase}/${url}`,
 
   // Chiave pubblica VAPID (rigenerabile con: node scripts/gen-vapid.mjs).
   vapidPublicKey: 'BIGT-2PCL-yPuN9PQ-IgxxTjqAMrcem8iRMVKmS_aPS24PzU0XczbiYyAhn69W66eVAGEMoJT9yC4vfheSzH5sc',
