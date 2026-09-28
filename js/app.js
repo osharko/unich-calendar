@@ -68,6 +68,7 @@ function unichApp() {
 
     dettaglio: null,
     tema: 'auto',
+    build: window.APP_BUILD || {},   // da js/version.js (rigenerato a ogni rilascio)
 
     /* ============================ lifecycle ============================ */
     async init() {
