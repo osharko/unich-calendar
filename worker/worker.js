@@ -172,18 +172,41 @@ async function runTick(env) {
 
   const eventiPerCal = new Map();
 
-  // --- 1) controlli Cineca (dedup per calendario). Un errore NON blocca il resto.
+  // --- 1) controlli Cineca: DIFF SEMANTICO sulle lezioni future (non hash
+  //      grezzo: lo scorrere della finestra temporale NON deve sembrare un
+  //      cambiamento, altrimenti spammeremmo tutti ogni giorno).
+  //      Un errore qui non blocca né reminder né test channel.
   try {
     const calIds = [...new Set(subs.flatMap((s) => s.prefs.calendars.map((c) => c.id)))];
     report.calendari = calIds.length;
     for (const calId of calIds) {
       try {
         const eventi = await fetchEventi(calId, now);
-        const hash = hashStr(JSON.stringify(eventi.map((e) => `${e.id}|${e.in}|${e.fi}|${e.st}|${e.au}|${e.mk.join(',')}`)));
-        const prev = await env.PUSH.get('hash:' + calId);
-        eventiPerCal.set(calId, { eventi, hash, cambiato: !!prev && prev !== hash });
-        if (!prev || prev !== hash) await env.PUSH.put('hash:' + calId, hash, { expirationTtl: 60 * 86400 });
-        if (eventiPerCal.get(calId).cambiato) report.cambiati.push(calId);
+        const futuri = eventi.filter((e) => new Date(e.in).getTime() > now + 60_000);
+        const prevRaw = await env.PUSH.get('snap:' + calId);
+        const st = { eventi, diff: null };
+        let flap = false;
+
+        if (prevRaw) {
+          let prev = null;
+          try { prev = JSON.parse(prevRaw); } catch { /* corrotto → baseline */ }
+          if (prev) {
+            const prevFut = (prev.ev || []).filter((e) => new Date(e.in).getTime() > now + 60_000);
+            st.diff = diffEventi(prevFut, futuri);
+            // ANTI-FLAP: se Cineca risponde mezza vuota per un problema suo,
+            // non è una cancellazione di massa: non avvisare e NON salvare.
+            const sparite = st.diff.annullate.length;
+            if (prevFut.length >= 5 && (futuri.length === 0 || sparite / prevFut.length > 0.6)) {
+              report.errori.push(`cal ${calId}: flap (${sparite}/${prevFut.length} sparite) — ignoro, snapshot congelato`);
+              st.diff = null;
+              flap = true;
+            }
+          }
+        }
+        if (env.DEBUG) console.log('diff', calId, st.diff && { a: st.diff.aggiunte.length, x: st.diff.annullate.length, m: st.diff.modificate.length });
+        if (st.diff && st.diff.tutto.length) report.cambiati.push(`${calId.slice(0, 8)}:+${st.diff.aggiunte.length} ~${st.diff.modificate.length} x${st.diff.annullate.length}`);
+        if (!flap) await env.PUSH.put('snap:' + calId, JSON.stringify({ at: now, ev: futuri }), { expirationTtl: 30 * 86400 });
+        eventiPerCal.set(calId, st);
       } catch (e) {
         report.errori.push(`cal ${calId}: ${e.message}`);
       }
@@ -202,12 +225,21 @@ async function runTick(env) {
         const st = eventiPerCal.get(c.id);
         if (!st) continue;
 
-        if (st.cambiato) {
-          msgs.push({
-            title: 'Calendario aggiornato',
-            body: `“${c.label || c.corso || c.id}” è cambiato: apri per vedere le lezioni.`,
-            type: 'changed', cals: [c.id],
-          });
+        // Notifica "cambiato" SOLO se la diff tocca materie che l'utente vede.
+        if (st.diff && st.diff.tutto.length) {
+          const rilevante = !c.materie ||
+            st.diff.tutto.some((e) => (e.mk || []).some((k) => c.materie.includes(k)));
+          if (rilevante) {
+            const p = [];
+            if (st.diff.annullate.length) p.push(`${st.diff.annullate.length} annullat${st.diff.annullate.length > 1 ? 'e' : 'a'}`);
+            if (st.diff.modificate.length) p.push(`${st.diff.modificate.length} spostata${st.diff.modificate.length > 1 ? 'e' : 'e'}`);
+            if (st.diff.aggiunte.length) p.push(`${st.diff.aggiunte.length} nuova${st.diff.aggiunte.length > 1 ? 'e' : ''}`);
+            msgs.push({
+              title: 'Calendario: modifiche',
+              body: `“${c.label || c.corso || c.id}”: ${p.join(', ')} ai prossimi giorni.`,
+              type: 'changed', cals: [c.id],
+            });
+          }
         }
 
         // reminder (dedup per evento via KV)
@@ -343,6 +375,31 @@ function hashStr(s) {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
   return String(h >>> 0) + ':' + s.length;
+}
+
+/**
+ * Confronto semantico tra due elenchi di lezioni FUTURE (snapshot prev e cur,
+ * già filtrati "inizia dopo l'orologio"). Solo differenze reali:
+ *  - aggiunte   : id nuovo che non c'era
+ *  - annullate  : id presente prima e sparito ora (o passato a stato A)
+ *  - modificate : stesso id, orario/aula/stato diversi
+ * Lo scorrere della finestra (lezioni che diventano passate) NON è una
+ * variazione, perché il filtro `in > now` lo applica a entrambi i lati.
+ */
+function diffEventi(prevFut, curFut) {
+  const mPrev = new Map(prevFut.map((e) => [e.id, e]));
+  const mCur = new Map(curFut.map((e) => [e.id, e]));
+  const aggiunte = [], annullate = [], modificate = [];
+
+  for (const [id, e] of mCur) {
+    const p = mPrev.get(id);
+    if (!p) { aggiunte.push(e); continue; }
+    if (p.st !== 'A' && e.st === 'A') annullate.push(e);
+    else if (p.in !== e.in || p.fi !== e.fi || p.au !== e.au || p.st !== e.st) modificate.push(e);
+  }
+  for (const [id, e] of mPrev) if (!mCur.has(id)) annullate.push(e);
+
+  return { aggiunte, annullate, modificate, tutto: [...aggiunte, ...annullate, ...modificate] };
 }
 
 async function loadSubs(env) {
