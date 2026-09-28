@@ -235,8 +235,8 @@ async function runTick(env) {
             if (st.diff.modificate.length) p.push(`${st.diff.modificate.length} spostata${st.diff.modificate.length > 1 ? 'e' : 'e'}`);
             if (st.diff.aggiunte.length) p.push(`${st.diff.aggiunte.length} nuova${st.diff.aggiunte.length > 1 ? 'e' : ''}`);
             msgs.push({
-              title: 'Calendario: modifiche',
-              body: `“${c.label || c.corso || c.id}”: ${p.join(', ')} ai prossimi giorni.`,
+              title: 'Unich-calendar',
+              body: `Lezioni di “${c.corso || c.label || c.id}” modificate (${p.join(', ')}): tocca per i dettagli.`,
               type: 'changed', cals: [c.id],
             });
           }
@@ -266,8 +266,8 @@ async function runTick(env) {
       if (changed.length) {
         payload.push({
           type: 'changed',
-          title: 'Calendario aggiornato',
-          body: changed.length === 1 ? changed[0].body : `${changed.length} calendari sono cambiati: apri per aggiornare.`,
+          title: 'Unich-calendar',
+          body: changed.length === 1 ? changed[0].body : `${changed.length} corsi con lezioni aggiornate: apri l'app per i dettagli.`,
           cals: [...new Set(changed.flatMap((m) => m.cals))],
         });
       }
