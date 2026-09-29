@@ -323,26 +323,37 @@ function unichApp() {
         for (const v of voci) {
           const nome = v.nome || l.insegnamento;
           const anno = v.annoCorso ?? l.annoCorso;
-          const id = `${nome}|${anno ?? ''}`;
+          // Raggruppiamo PER SOLO NOME: la stessa lezione può comparire in
+          // più dettagli (anni/percorsi diversi) → un solo badge, non 3.
+          const id = nome;
           let voce = mappa.get(id);
           if (!voce) {
-            voce = { id, insegnamento: nome, annoCorso: anno, docenti: l.docenti,
+            voce = { id, insegnamento: nome, anni: new Set(), docenti: l.docenti,
                      chiavi: new Set(), lezioni: new Set() };
             mappa.set(id, voce);
           }
           voce.chiavi.add(v.chiave);
+          if (anno != null) voce.anni.add(anno);
           voce.lezioni.add(l.id);
         }
       }
       const ordinate = [...mappa.values()]
-        .map((v) => ({ ...v, chiavo: [...v.chiavi], n: v.lezioni.size }))
+        .map((v) => ({
+          ...v,
+          chiavo: [...v.chiavi],
+          n: v.lezioni.size,
+          annoCorso: v.anni.size === 1 ? [...v.anni][0] : null,
+          annoLabel: v.anni.size
+            ? [...v.anni].sort((a, b) => a - b).map((a) => a + '°').join(' / ') + (v.anni.size > 1 ? ' anno' : ' anno')
+            : '',
+        }))
         .sort((a, b) => a.insegnamento.localeCompare(b.insegnamento));
 
       // Colore stabile (hash + linear probing) e visibilità dal filtro.
       const usati = new Set();
       const vis = s.materieVisibili; // null = tutte
       for (const m of ordinate) {
-        let idx = hashColore(`${m.insegnamento}|${m.annoCorso ?? ''}`);
+        let idx = hashColore(m.insegnamento);
         let t = 0;
         while (usati.has(idx) && t < NUM_COLORI) { idx = (idx + 1) % NUM_COLORI; t++; }
         usati.add(idx);

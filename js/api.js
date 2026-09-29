@@ -104,8 +104,10 @@ function normalizzaImpegno(i, linkCalendarioId) {
   const dd = dettagli[0] || {};
   const nome = i.nome || dd.nome || evento.nome || (i.causaleIndisponibilita ?? 'Senza titolo');
   // Titolo mostrato: se condiviso, unisce i nomi dei vari insegnamenti.
+  // Dedup dei nomi: un impegno può avere lo stesso insegnamento ripetuto su
+  // più dettagli (es. L-19 + L-5) → "STORIA MODERNA", non "X + X + X".
   const insegnamento = materie.length
-    ? materie.map((m) => m.nome).filter(Boolean).join(' + ')
+    ? ([...new Set(materie.map((m) => m.nome).filter(Boolean))].join(' + ') || nome)
     : nome;
 
   // Chiave stabile della materia: gli id dei dettagli, ordinati, concatenati.
