@@ -365,7 +365,7 @@ async function fetchEventi(linkCalendarioId, now) {
       fi: x.dataFine,
       st: x.stato || 'P',
       nome: x.evento?.dettagliDidattici?.[0]?.nome || x.nome || 'Lezione',
-      au: (x.aule || []).map((a) => a.codice).filter(Boolean).join(' '),
+      au: (x.aule || []).map((a) => a.descrizione || a.codice).filter(Boolean).join(' '),
       mk: (x.evento?.dettagliDidattici || []).map((d) => d.id || d.codice || d.nome).filter(Boolean).sort(),
     }))
     .filter((ev) => new Date(ev.in).getTime() > now - 3600000) // solo futuro/oggi

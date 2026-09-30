@@ -318,7 +318,7 @@
                     <span class="block font-semibold" :style="l._altezza < 7 ? 'white-space:nowrap' : ''" x-text="titoloLezione(l)"></span>
                     <span class="block opacity-80" x-text="formattaOra(l.inizio)"></span>
                     <span class="block truncate opacity-70" x-show="l.aule.length && l._altezza > 8"
-                          x-text="l.aule.map(a => a.codice || a.descrizione).join(', ')"></span>
+                          x-text="l.aule.map(a => a.descrizione || a.codice).join(', ')"></span>
                   </button>
                 </template>
               </div>
@@ -418,7 +418,9 @@
           <div class="flex gap-2" x-show="dettaglio.docenti.length"><dt class="w-20 shrink-0 text-subtext0">Docenti</dt>
             <dd x-text="dettaglio.docenti.join(', ')"></dd></div>
           <div class="flex gap-2" x-show="dettaglio.aule.length"><dt class="w-20 shrink-0 text-subtext0">Aule</dt>
-            <dd x-text="dettaglio.aule.map(a => [a.codice, a.edificio, a.comune].filter(Boolean).join(' · ')).join('; ')"></dd></div>
+            <dd x-text="dettaglio.aule.map(a => [a.descrizione || a.codice, a.edificio].filter(Boolean).join(' · ')).join('; ')"></dd></div>
+          <div class="flex gap-2" x-show="dettaglio.sede"><dt class="w-20 shrink-0 text-subtext0">Sede</dt>
+            <dd x-text="dettaglio.sede"></dd></div>
           <div class="flex gap-2" x-show="dettaglio.annoCorso"><dt class="w-20 shrink-0 text-subtext0">Anno</dt>
             <dd x-text="dettaglio.annoCorso + '°'"></dd></div>
           <div class="flex gap-2" x-show="dettaglio.codice"><dt class="w-20 shrink-0 text-subtext0">Codice</dt>

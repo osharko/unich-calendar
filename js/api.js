@@ -126,6 +126,11 @@ function normalizzaImpegno(i, linkCalendarioId) {
     comune: a.edificio?.comune || '',
     piano: a.piano?.descrizione || '',
   }));
+  // Sede in forma umana ("Sede 2 - CHIETI"), come sul sito d'ateneo
+  const sede = (i.sedi || [])
+    .map((s) => [s.codice ? `Sede ${s.codice}` : '', s.descrizione].filter(Boolean).join(' - '))
+    .filter(Boolean)
+    .join(', ');
 
   return {
     id: i.id,
@@ -144,6 +149,7 @@ function normalizzaImpegno(i, linkCalendarioId) {
     annoCorso: i.annoCorso ?? dd.annoCorso ?? null,
     docenti,
     aule,
+    sede,
     percorso: (i.percorsi || [])[0]?.descrizione || null,
     partizione: i.fattoreDiPartizione?.descrizione || null,
   };
