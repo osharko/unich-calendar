@@ -105,6 +105,16 @@ try {
   const st = await evaluate(`return { tot: ${A}.lezioni.length, err: String(${A}.errore), wiz: ${A}.wizardAperto, cor: String(${A}.correnteId).slice(0,6) };`);
   ok('lezioni del calendario corrente', st.tot > 100 && st.err === 'null' && !st.wiz, JSON.stringify(st));
 
+  // ---- dati completi come sul sito ufficiale ----
+  await poll(evaluate, `${A}.lezioni.some(l=>!l.indisponibilita&&l.sede&&l.corsoStudi&&l.tipoAttivita)`, 15000);
+  ok('sede/corso/tipo normalizzati dall API', await evaluate(`return ${A}.lezioni.some(l=>l.sede&&l.corsoStudi&&l.tipoAttivita&&l.percorso)`));
+  ok('cache marca schema e non è storica', await evaluate(`return !store.cacheStorica(${A}.correnteId)`));
+  const righe = await evaluate(`
+    const d = ${A}.lezioni.find(l=>!l.indisponibilita);
+    return ${A}.dettaglioVoci(d).map(r=>r.etichetta).join('|');
+  `);
+  ok('dettaglioVoci completo', ['Quando','Corso di studio','Tipo attività','Sede','Docenti','Aule'].every(k => String(righe).includes(k)), String(righe).slice(0, 100));
+
   // ---- materie (pill cliccabili) ----
   const materie = await evaluate(`return ${A}.materie.map(m=>m.insegnamento);`);
   const nMat = await evaluate(`return ${A}.materie.length;`);

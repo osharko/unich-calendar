@@ -58,9 +58,14 @@ const store = {
   getLezioni(linkCalendarioId) {
     return store.getCache()[linkCalendarioId]?.lezioni ?? null;
   },
+  /** true se la cache di questo calendario usa uno schema vecchio. */
+  cacheStorica(linkCalendarioId) {
+    const c = store.getCache()[linkCalendarioId];
+    return !!c && c.schema !== CONFIG.schemaCache;
+  },
   setLezioni(linkCalendarioId, lezioni) {
     const cache = store.getCache();
-    cache[linkCalendarioId] = { aggiornatoIl: new Date().toISOString(), lezioni };
+    cache[linkCalendarioId] = { aggiornatoIl: new Date().toISOString(), schema: CONFIG.schemaCache, lezioni };
     return scrivi(KEYS.cache, cache);
   },
 

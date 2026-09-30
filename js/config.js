@@ -36,6 +36,12 @@ const CONFIG = {
   // generati da scripts/gen-palette.mjs con variante light/dark.
   numColori: 50,
 
+  // Versione dello schema di normalizzazione (api.js). Se cambia, la cache
+  // lezioni in localStorage è da considerarsi vecchia: l'app la ri-fresha
+  // silenziosamente alla prima apertura (cosé campi nuovi come "sede" o
+  // "corsoStudi" arrivano da soli, senza gestire nulla a mano).
+  schemaCache: 2,
+
   // Notifiche: promemoria 15 min prima, finestra di programmazione 3 giorni.
   anticipoNotificaMs: 15 * 60 * 1000,
   orizzonteNotificheMs: 3 * 24 * 60 * 60 * 1000,

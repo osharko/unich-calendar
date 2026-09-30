@@ -132,6 +132,18 @@ function normalizzaImpegno(i, linkCalendarioId) {
     .filter(Boolean)
     .join(', ');
 
+  // Tutti gli altri campi descrittivi esposti dall'API (per il dettaglio
+  // "data-driven": mostriamo ciò che c'è, senza selezioni hardcoded).
+  const corso = dd.corso || {};
+  const corsoStudi = corso.descrizione
+    ? `${corso.codice ? corso.codice + ' - ' : ''}${corso.descrizione}${corso.tipoCorso?.codice ? ` [${corso.tipoCorso.codice}]` : ''}`
+    : null;
+  const tipoAttivita = evento.tipoAttivita?.descrizione || i.tipoAttivita?.descrizione || null;
+  const tipoEvento = i.tipoEvento?.descrizione || evento.tipoEvento?.descrizione || null;
+  const percorsi = (i.percorsi || [])
+    .map((p) => [p.codice, p.descrizione].filter(Boolean).join(' - ')).filter(Boolean);
+  const edifici = (i.edifici || []).map((e) => e.descrizione).filter(Boolean);
+
   return {
     id: i.id,
     linkCalendarioId,
@@ -146,11 +158,21 @@ function normalizzaImpegno(i, linkCalendarioId) {
     chiaveMateria,
     materie,
     codice: dd.codice || null,
+    corsoStudi,
+    tipoAttivita,
+    tipoEvento,
+    percorsi,
+    edifici,
+    sede,
+    cfu: dd.cfu ?? null,
+    tipoInsegnamento: dd.tipoInsegnamento || null,
+    modalitaDidattica: dd.modalitaDidattica || null,
+    notaSospensione: i.notaSospensione || null,
+    durataMinuti: Math.max(0, Math.round((new Date(i.dataFine) - new Date(i.dataInizio)) / 60000)),
     annoCorso: i.annoCorso ?? dd.annoCorso ?? null,
     docenti,
     aule,
-    sede,
-    percorso: (i.percorsi || [])[0]?.descrizione || null,
+    percorso: percorsi[0] || null,
     partizione: i.fattoreDiPartizione?.descrizione || null,
   };
 }

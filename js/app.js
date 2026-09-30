@@ -282,6 +282,11 @@ function unichApp() {
       const l = this.correnteId ? store.getLezioni(this.correnteId) : null;
       this.lezioni = l || [];
       this.ricalcola();
+      // Cache scritta con schema vecchio (mancano campi tipo "sede"): ri-fetch
+      // silenzioso, una tantum, senza chiedere nulla all'utente.
+      if (this.correnteId && navigator.onLine !== false && store.cacheStorica(this.correnteId)) {
+        this.aggiornaLezioni({ silenzioso: true });
+      }
     },
 
     async aggiornaLezioni(opts = {}) {
@@ -445,6 +450,39 @@ function unichApp() {
       if (!l) return '';
       const nomi = [...new Set(((l.materie || []).map((m) => m && m.nome).filter(Boolean)))];
       return nomi.length ? nomi.join(' + ') : (l.insegnamento || '');
+    },
+
+    /**
+     * Tutte le informazioni disponibili per una lezione, come righe etichetta/
+     * valore (fonti Cineca: details didattici, aula, sede, tipo attivita…).
+     * I campi assenti (o nelle cache vecchie) semplicemente non compaiono.
+     */
+    dettaglioVoci(l) {
+      if (!l) return [];
+      const righe = [];
+      const add = (etichetta, valore) => {
+        if (valore === null || valore === undefined || valore === '' || (Array.isArray(valore) && !valore.length)) return;
+        righe.push({ etichetta, valore: String(valore) });
+      };
+      add('Quando', `${this.formattaData(l.inizio, { weekday: 'long', day: 'numeric', month: 'long' })}, ${this.formattaOra(l.inizio)} – ${this.formattaOra(l.fine)}`);
+      add('Corso di studio', l.corsoStudi);
+      add('Tipo attività', l.tipoAttivita);
+      if (l.annoCorso) add('Anno di corso', `${l.annoCorso}°`);
+      add('Percorso', Array.isArray(l.percorsi) && l.percorsi.length ? l.percorsi.join('; ') : l.percorso);
+      add('Sede', l.sede);
+      add('Docenti', l.docenti?.join(', '));
+      add('Aule', l.aule?.map((a) => [a.descrizione || a.codice, a.edificio, a.piano].filter(Boolean).join(' · ')).join('; '));
+      add('Edifici', Array.isArray(l.edifici) && l.edifici.length ? l.edifici.join('; ') : null);
+      add('Partizione', l.partizione);
+      add('Codice', l.codice);
+      add('CFU', l.cfu);
+      add('Tipologia', l.tipoInsegnamento);
+      add('Modalità', l.modalitaDidattica);
+      add('Durata', l.durataMinuti ? `${Math.round(l.durataMinuti / 60 * 2) / 2} h` : null);
+      if (l.stato === 'A') add('Stato', '⚠ Lezione annullata');
+      if (l.stato === 'S') add('Stato', '⏸ Lezione sospesa');
+      add('Nota', l.notaSospensione);
+      return righe;
     },
 
     /** Apre sulla prima data con lezioni (niente settimane vuote di default). */

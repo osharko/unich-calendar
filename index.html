@@ -413,20 +413,12 @@
           <button @click="chiudiDettaglio()" class="ml-auto text-subtext0 hover:text-text">✕</button>
         </div>
         <dl class="space-y-2 text-sm">
-          <div class="flex gap-2"><dt class="w-20 shrink-0 text-subtext0">Quando</dt>
-            <dd x-text="formattaData(dettaglio.inizio, { weekday:'long', day:'numeric', month:'long' }) + ', ' + formattaOra(dettaglio.inizio) + '–' + formattaOra(dettaglio.fine)"></dd></div>
-          <div class="flex gap-2" x-show="dettaglio.docenti.length"><dt class="w-20 shrink-0 text-subtext0">Docenti</dt>
-            <dd x-text="dettaglio.docenti.join(', ')"></dd></div>
-          <div class="flex gap-2" x-show="dettaglio.aule.length"><dt class="w-20 shrink-0 text-subtext0">Aule</dt>
-            <dd x-text="dettaglio.aule.map(a => [a.descrizione || a.codice, a.edificio].filter(Boolean).join(' · ')).join('; ')"></dd></div>
-          <div class="flex gap-2" x-show="dettaglio.sede"><dt class="w-20 shrink-0 text-subtext0">Sede</dt>
-            <dd x-text="dettaglio.sede"></dd></div>
-          <div class="flex gap-2" x-show="dettaglio.annoCorso"><dt class="w-20 shrink-0 text-subtext0">Anno</dt>
-            <dd x-text="dettaglio.annoCorso + '°'"></dd></div>
-          <div class="flex gap-2" x-show="dettaglio.codice"><dt class="w-20 shrink-0 text-subtext0">Codice</dt>
-            <dd x-text="dettaglio.codice"></dd></div>
-          <div class="flex gap-2" x-show="dettaglio.stato === 'A'"><dt class="w-20 shrink-0 text-subtext0">Stato</dt>
-            <dd class="text-red">Lezione annullata</dd></div>
+          <template x-for="r in dettaglioVoci(dettaglio)" :key="r.etichetta">
+            <div class="flex gap-2">
+              <dt class="w-28 shrink-0 text-subtext0" x-text="r.etichetta"></dt>
+              <dd x-text="r.valore"></dd>
+            </div>
+          </template>
         </dl>
       </div>
     </div>
