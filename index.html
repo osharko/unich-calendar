@@ -315,7 +315,7 @@
                             color: var(--mat-${(coloreDiLezione(l) ?? 0) % 50});
                             background: color-mix(in srgb, currentColor 16%, transparent);
                           `">
-                    <span class="block font-semibold" :style="l._altezza < 7 ? 'white-space:nowrap' : ''" x-text="l.insegnamento"></span>
+                    <span class="block font-semibold" :style="l._altezza < 7 ? 'white-space:nowrap' : ''" x-text="titoloLezione(l)"></span>
                     <span class="block opacity-80" x-text="formattaOra(l.inizio)"></span>
                     <span class="block truncate opacity-70" x-show="l.aule.length && l._altezza > 8"
                           x-text="l.aule.map(a => a.codice || a.descrizione).join(', ')"></span>
@@ -409,7 +409,7 @@
         <div class="mb-3 flex items-start gap-2">
           <span class="mt-1 inline-block h-3 w-3 shrink-0 rounded-full"
                 :style="`background: var(--mat-${(coloreDiLezione(dettaglio) ?? 0) % 50})`"></span>
-          <h3 class="text-base font-semibold" x-text="dettaglio.insegnamento"></h3>
+          <h3 class="text-base font-semibold" x-text="titoloLezione(dettaglio)"></h3>
           <button @click="chiudiDettaglio()" class="ml-auto text-subtext0 hover:text-text">✕</button>
         </div>
         <dl class="space-y-2 text-sm">

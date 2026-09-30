@@ -436,6 +436,17 @@ function unichApp() {
     },
     get altezzaOra() { return 56; },
 
+    /**
+     * Titolo di una lezione calcolato a render-time: nomi dei dettagli
+     * deduplicati (la cache vecchia può contenere "X + X + X" pre-fix; così
+     * è corretto anche senza aspettare il re-fetch).
+     */
+    titoloLezione(l) {
+      if (!l) return '';
+      const nomi = [...new Set(((l.materie || []).map((m) => m && m.nome).filter(Boolean)))];
+      return nomi.length ? nomi.join(' + ') : (l.insegnamento || '');
+    },
+
     /** Apre sulla prima data con lezioni (niente settimane vuote di default). */
     _saltaAllaPrimaLezione() {
       if (this.giorni.some((g) => g.lezioni.length)) return;
