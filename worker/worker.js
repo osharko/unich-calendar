@@ -29,6 +29,7 @@ const DOMINI_CONSENTITI = ['www.unich.it', 'unich.it'];
 const ORIZZONTE_GG = 8;      // finestra di eventi considerata
 const FINA_REMINDER_MIN = 25; // reminder: evento che inizia tra 10 e 25 min
 const INIZIO_REMINDER_MIN = 8;
+const BUILD = 'v3-changelog'; // marcatore visibile su GET / (verifica deploy)
 
 /* ============================ main fetch ============================== */
 
@@ -43,7 +44,7 @@ export default {
       case '/':
         ///?url=... È il formato proxy: non rubare la route allo stato!
         if (url.searchParams.has('url')) return handleProxy(request, url, cors);
-        return json({ ok: true, servizio: 'unich-proxy', modalità: 'proxy + push' }, 200, cors);
+        return json({ ok: true, servizio: 'unich-proxy', versione: BUILD, modalità: 'proxy + push' }, 200, cors);
       case '/subscribe':
         return handleSubscribe(request, env, cors);
       case '/unsubscribe':
@@ -453,6 +454,11 @@ async function loadSubs(env) {
 
 async function sendPush(env, sub, payloadStr) {
   const { endpoint, keys } = sub.subscription;
+  // Difesa: mai inviare push senza corpo (una notifica con solo titolo è
+  // inutile e confonde). Copre qualunque percorso: test, changed, reminder.
+  let _body = '';
+  try { _body = String(JSON.parse(payloadStr).body ?? '').trim(); } catch { /* payload non JSON */ }
+  if (!_body) { console.log('push saltata: corpo vuoto', new URL(endpoint).host); return 'empty'; }
   const vapid = await getVapidKeys(env);
   if (!vapid) throw new Error('VAPID non configurata');
 
