@@ -225,19 +225,16 @@ async function runTick(env) {
         const st = eventiPerCal.get(c.id);
         if (!st) continue;
 
-        // Notifica "cambiato" SOLO se la diff tocca materie che l'utente vede.
+        // Changelog: una notifica PER CORSO con le righe di cosa è cambiato
+        // (solo materie visibili dall'utente; cap 10 righe con "e altre N").
         if (st.diff && st.diff.tutto.length) {
-          const rilevante = !c.materie ||
-            st.diff.tutto.some((e) => (e.mk || []).some((k) => c.materie.includes(k)));
-          if (rilevante) {
-            const p = [];
-            if (st.diff.annullate.length) p.push(`${st.diff.annullate.length} annullat${st.diff.annullate.length > 1 ? 'e' : 'a'}`);
-            if (st.diff.modificate.length) p.push(`${st.diff.modificate.length} spostata${st.diff.modificate.length > 1 ? 'e' : 'e'}`);
-            if (st.diff.aggiunte.length) p.push(`${st.diff.aggiunte.length} nuova${st.diff.aggiunte.length > 1 ? 'e' : ''}`);
+          const righe = changelogRighe(st.diff, c.materie);
+          if (righe.length) {
+            const intestazione = [c.corso, c.label].filter(Boolean).join(' · ') || c.id;
             msgs.push({
               title: 'Unich-calendar',
-              body: `Lezioni di “${c.corso || c.label || c.id}” modificate (${p.join(', ')}): tocca per i dettagli.`,
-              type: 'changed', cals: [c.id],
+              body: `${intestazione}:\n${changelogTesto(righe)}`,
+              type: 'changed', cals: [c.id], tag: 'chg-' + c.id,
             });
           }
         }
@@ -260,18 +257,10 @@ async function runTick(env) {
       }
 
       // un solo push per sottoscrizione (se più messaggi, compatta il "changed")
+      // Massimo 3 changed (tag separati → notifiche distinte per corso) + 1 reminder
       const changed = msgs.filter((m) => m.type === 'changed');
       const reminders = msgs.filter((m) => m.type === 'reminder');
-      const payload = [];
-      if (changed.length) {
-        payload.push({
-          type: 'changed',
-          title: 'Unich-calendar',
-          body: changed.length === 1 ? changed[0].body : `${changed.length} corsi con lezioni aggiornate: apri l'app per i dettagli.`,
-          cals: [...new Set(changed.flatMap((m) => m.cals))],
-        });
-      }
-      for (const r of reminders.slice(0, 2)) payload.push(r);
+      const payload = [...changed.slice(0, 3), ...reminders.slice(0, 1)];
 
       for (const p of payload) {
         const r = await sendPush(env, s, JSON.stringify(p));
@@ -389,7 +378,7 @@ function hashStr(s) {
  * Lo scorrere della finestra (lezioni che diventano passate) NON è una
  * variazione, perché il filtro `in > now` lo applica a entrambi i lati.
  */
-function diffEventi(prevFut, curFut) {
+export function diffEventi(prevFut, curFut) {
   const mPrev = new Map(prevFut.map((e) => [e.id, e]));
   const mCur = new Map(curFut.map((e) => [e.id, e]));
   const aggiunte = [], annullate = [], modificate = [];
@@ -398,11 +387,52 @@ function diffEventi(prevFut, curFut) {
     const p = mPrev.get(id);
     if (!p) { aggiunte.push(e); continue; }
     if (p.st !== 'A' && e.st === 'A') annullate.push(e);
-    else if (p.in !== e.in || p.fi !== e.fi || p.au !== e.au || p.st !== e.st) modificate.push(e);
+    else if (p.in !== e.in || p.fi !== e.fi || p.au !== e.au || p.st !== e.st) modificate.push({ ev: e, prima: p });
   }
   for (const [id, e] of mPrev) if (!mCur.has(id)) annullate.push(e);
 
-  return { aggiunte, annullate, modificate, tutto: [...aggiunte, ...annullate, ...modificate] };
+  const eventi = [...aggiunte, ...annullate, ...modificate.map((m) => m.ev)];
+  return { aggiunte, annullate, modificate, tutto: eventi };
+}
+
+/* ------------------- changelog leggibile per le push --------------------- */
+
+function fmtQuando(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '?';
+  return d.toLocaleString('it-IT', {
+    weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+    timeZone: 'Europe/Rome',
+  });
+}
+
+/**
+ * Righe di cambiamento (una per evento), filtrate dalle materie nascoste.
+ * Annullata/spostata(↔ orario)/aula(📍)/recuperata(↩)/aggiunta(＋).
+ */
+export function changelogRighe(diff, materie) {
+  const vede = (e) => !materie || (e.mk || []).some((k) => materie.includes(k));
+  const r = [];
+  for (const e of diff.annullate) if (vede(e)) r.push(`✕ Annullata: ${e.nome} · ${fmtQuando(e.in)}`);
+  for (const m of diff.modificate) {
+    if (!vede(m.ev)) continue;
+    const oraCambia = m.prima.in !== m.ev.in || m.prima.fi !== m.ev.fi;
+    const aulaCambia = (m.prima.au || '') !== (m.ev.au || '');
+    if (m.prima.st === 'A' && m.ev.st !== 'A') r.push(`↩ Recuperata: ${m.ev.nome} · ${fmtQuando(m.ev.in)}`);
+    else if (oraCambia && aulaCambia) r.push(`↔ ${m.ev.nome}: ${fmtQuando(m.prima.in)} → ${fmtQuando(m.ev.in)}, aula ${m.ev.au || '—'}`);
+    else if (oraCambia) r.push(`↔ ${m.ev.nome}: ${fmtQuando(m.prima.in)} → ${fmtQuando(m.ev.in)}`);
+    else if (aulaCambia) r.push(`📍 ${m.ev.nome} ${fmtQuando(m.ev.in)}: aula ${m.prima.au || '—'} → ${m.ev.au || '—'}`);
+    else r.push(`• ${m.ev.nome} ${fmtQuando(m.ev.in)}: dettagli aggiornati`);
+  }
+  for (const e of diff.aggiunte) if (vede(e)) r.push(`＋ Nuova: ${e.nome} · ${fmtQuando(e.in)}${e.au ? ' · ' + e.au : ''}`);
+  return r;
+}
+
+/** Cap a `max` righe con riepilogo "… e altre N". */
+export function changelogTesto(righe, max = 10) {
+  if (!righe.length) return '';
+  const taglio = righe.length > max ? `\n… e altre ${righe.length - max} modifiche` : '';
+  return righe.slice(0, max).join('\n') + taglio;
 }
 
 async function loadSubs(env) {
