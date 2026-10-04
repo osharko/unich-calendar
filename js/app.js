@@ -21,6 +21,12 @@ function hashColore(testo) {
   return Math.abs(h) % NUM_COLORI;
 }
 
+/** Minuti → ore con formato compatto ("0", "2", "12,5"). */
+function oreH(min) {
+  const h = Math.round((min / 60) * 10) / 10;
+  return String(h).replace('.', ',');
+}
+
 function unichApp() {
   return {
     /* ============================== stato ============================== */
@@ -57,6 +63,9 @@ function unichApp() {
     giorni: [], ore: [],
     oraMin: 8, oraMax: 20,
     nascondiAnnullati: true,
+    // "Adesso": cambia ogni minuto → le chip {erogate}/{totali}h e
+    // l'effetto "lezione in corso" restano aggiornati senza refresh.
+    oraAdesso: Date.now(),
 
     // --- notifiche push ---
     permNotifiche: 'unsupported', // granted|denied|default|unsupported
@@ -139,6 +148,20 @@ function unichApp() {
           }
         });
       }
+
+      // Orologio dell'app: ogni minuto (e al ritorno in primo piano) aggiorna
+      // "adesso" → chip {erogate}/{totali}h e lezioni in corso sempre veritiere.
+      const segnaOra = () => { this.oraAdesso = Date.now(); };
+      setInterval(segnaOra, 60000);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) segnaOra();
+      });
+
+      // Pull-to-refresh: solo dall'alto, solo verso il basso (ptrStart/Move/End).
+      document.addEventListener('touchstart', (e) => this.ptrStart(e), { passive: true });
+      document.addEventListener('touchmove', (e) => this.ptrMove(e), { passive: false });
+      document.addEventListener('touchend', () => this.ptrEnd(), { passive: true });
+      document.addEventListener('touchcancel', () => { this._ptrY = null; this.ptr.dy = 0; }, { passive: true });
     },
 
     /* =============================== tema ============================== */
@@ -319,12 +342,22 @@ function unichApp() {
     get materie() {
       if (!this.corrente) return [];
       const s = this.corrente;
+      const ora = this.oraAdesso; // reattività: le ore erogate cambiano col tempo
       const mappa = new Map();
       for (const l of this.lezioni) {
         if (l.linkCalendarioId !== s.linkCalendarioId || l.indisponibilita) continue;
         const voci = (l.materie && l.materie.length)
           ? l.materie
           : [{ chiave: l.chiaveMateria, nome: l.insegnamento, annoCorso: l.annoCorso, codice: l.codice }];
+        // Ore della lezione: da durataMinuti (o ricavate dalle date nelle
+        // cache vecchie). Annullate = mai erogate e mai conteggiate.
+        const dur = l.durataMinuti
+          || Math.max(0, Math.round((new Date(l.fine) - new Date(l.inizio)) / 60000));
+        const t0 = new Date(l.inizio).getTime();
+        const t1 = new Date(l.fine).getTime();
+        const annullata = l.stato === 'A';
+        const iniziata = !annullata && t0 <= ora;
+        const inCorso = !annullata && t0 <= ora && t1 > ora;
         for (const v of voci) {
           const nome = v.nome || l.insegnamento;
           const anno = v.annoCorso ?? l.annoCorso;
@@ -334,12 +367,20 @@ function unichApp() {
           let voce = mappa.get(id);
           if (!voce) {
             voce = { id, insegnamento: nome, anni: new Set(), docenti: l.docenti,
-                     chiavi: new Set(), lezioni: new Set() };
+                     chiavi: new Set(), lezioni: new Set(),
+                     oreTot: 0, oreEro: 0, inCorso: false };
             mappa.set(id, voce);
           }
           voce.chiavi.add(v.chiave);
           if (anno != null) voce.anni.add(anno);
-          voce.lezioni.add(l.id);
+          // Le ore si sommano solo la PRIMA volta che la lezione entra nel
+          // gruppo (una lezione può avere più voci dallo stesso nome).
+          if (!voce.lezioni.has(l.id)) {
+            voce.lezioni.add(l.id);
+            if (!annullata) voce.oreTot += dur;
+            if (iniziata) voce.oreEro += dur;
+            if (inCorso) voce.inCorso = true;
+          }
         }
       }
       const ordinate = [...mappa.values()]
@@ -347,6 +388,12 @@ function unichApp() {
           ...v,
           chiavo: [...v.chiavi],
           n: v.lezioni.size,
+          // Chip "{erogate}/{pianificate}h": ore pubblicate nel calendario e
+          // ore già trascorse adesso (una lezione iniziata conta tutta).
+          oreLabel: `${oreH(v.oreEro)}/${oreH(v.oreTot)}h`,
+          tip: `${oreH(v.oreEro)} h erogate su ${oreH(v.oreTot)} h pubblicate · `
+             + `${v.lezioni.size} lezioni`
+             + (v.inCorso ? ' · ⏳ lezione in corso' : ''),
           annoCorso: v.anni.size === 1 ? [...v.anni][0] : null,
           annoLabel: v.anni.size
             ? [...v.anni].sort((a, b) => a - b).map((a) => a + '°').join(' / ') + (v.anni.size > 1 ? ' anno' : ' anno')
@@ -626,16 +673,72 @@ function unichApp() {
     },
 
     /**
-     * Sostituisce l'auto-refresh all'avvio: apre la cache, e aggiorna solo se
-     * il meta scritto dal push 'changed' è più recente dell'ultimo sync.
+     * Sync automatico all'apertura, attivato SOLO da una notifica di cambio.
+     * Due fonti, per robustezza:
+     *  1. meta IndexedDB scritto dal SW al push (immediato, locale);
+     *  2. GET /lastchange sul Worker (funziona anche se il SW non è partito
+     *     o l'IndexedDB non è stato scritto — tipico su iOS con app chiusa).
+     * Se una delle due è più recente della cache locale → sync silenzioso.
      */
     async verificaCambioDaPush() {
       if (!this.correnteId) return;
-      const meta = await leggiUltimoCambio();
-      if (!meta?.at) return;
       const cache = store.getCache()[this.correnteId];
       const eta = cache?.aggiornatoIl ? new Date(cache.aggiornatoIl).getTime() : 0;
-      if (meta.at > eta) this.aggiornaLezioni({ silenzioso: true });
+
+      let at = 0;
+      try {
+        const meta = await leggiUltimoCambio();
+        if (meta?.at) at = Math.max(at, meta.at);
+      } catch { /* niente: passa alla fonte 2 */ }
+
+      if (CONFIG.workerBase && navigator.onLine !== false) {
+        try {
+          const res = await fetch(`${CONFIG.workerBase}/lastchange`, { cache: 'no-store' });
+          if (res.ok) {
+            const remoto = await res.json();
+            if (remoto?.at) at = Math.max(at, remoto.at);
+          }
+        } catch { /* offline: si riproverà alla prossima apertura */ }
+      }
+
+      if (at > eta) {
+        this.messaggio = 'Notifica di aggiornamento ricevuta: sincronizzo…';
+        this.aggiornaLezioni({ silenzioso: true });
+      }
+    },
+
+    /* ======================= pull-to-refresh ============================
+     * Trascinamento dal bordo alto (solo a scroll in cima, solo verso il
+     * basso): rilascio oltre soglia → sync silenzioso con anello rotante. */
+    ptr: { dy: 0, attivo: false },
+    _ptrY: null,
+    ptrStart(e) {
+      if (this.ptr.attivo || this._ptrY !== null) return;
+      if ((window.scrollY || document.documentElement.scrollTop || 0) > 0) return;
+      this._ptrY = e.touches?.[0]?.clientY ?? null;
+    },
+    ptrMove(e) {
+      if (this._ptrY === null) return;
+      const y = e.touches?.[0]?.clientY;
+      if (y == null) return;
+      const dy = y - this._ptrY;
+      if (dy <= 0) { this.ptr.dy = 0; return; }
+      // resistenza progressiva (max 70px visivi) + niente bounce nativo
+      this.ptr.dy = Math.min(70, dy * 0.5);
+      if (e.cancelable) e.preventDefault();
+    },
+    async ptrEnd() {
+      const tiro = this.ptr.dy;
+      this._ptrY = null;
+      this.ptr.dy = 0;
+      if (tiro < 45 || this.ptr.attivo) return;
+      if (!this.correnteId || navigator.onLine === false) return;
+      this.ptr.attivo = true;
+      try {
+        await this.aggiornaLezioni({ silenzioso: true });
+        this.messaggio = 'Calendario sincronizzato ✓';
+      } catch { /* errore già mostrato da aggiornaLezioni */ }
+      finally { setTimeout(() => (this.ptr.attivo = false), 400); }
     },
 
     /* ============================ dettaglio ============================ */

@@ -122,6 +122,18 @@ try {
   ok('materie con colori distinti', nMat >= 8 && coloriDistinti === nMat, `${nMat} materie`);
   const pillsDom = await evaluate(`return document.querySelectorAll('.pill').length;`);
   ok('pills materie nel DOM', pillsDom === nMat, `${pillsDom} pills`);
+  // ---- chip {erogate}/{pianificate}h ----
+  const chip = await evaluate(`return ${A}.materie.map(m=>({t:m.oreLabel, tip:m.tip,
+    ok: /^\\d+(,\\d+)?\\/\\d+(,\\d+)?h$/.test(m.oreLabel)}));`);
+  const erogate = await evaluate(`return ${A}.materie.map(m=>m.oreLabel.split('/')[0].replace(',','.').replace('h','')).map(Number);`);
+  const totali = await evaluate(`return ${A}.materie.map(m=>m.oreLabel.split('/')[1].replace(',','.').replace('h','')).map(Number);`);
+  ok('chip formato {erogate}/{pianificate}h',
+    chip.every(c=>c.ok) && erogate.every((e,i)=>e <= totali[i]) && totali.every(t=>t > 0),
+    chip.map(c=>c.t).join(' · '));
+  ok('chip con tooltip ore erogate/pubblicate',
+    chip.every(c=>/erogate su .* pubblicate/.test(c.tip)), chip[0]?.tip);
+  const txtDom = await evaluate(`return [...document.querySelectorAll('.pill .text-\\\\[10px\\\\]')].map(e=>e.textContent);`);
+  ok('chip renderizzate nel DOM', txtDom.length > 0 && txtDom.every(t=>/h$/.test(t)), txtDom.slice(0,3).join(' · '));
   const prima = await evaluate(`return ${A}.lezioniFiltrate.filter(l=>!l.indisponibilita).length;`);
   await evaluate(`${A}.toggleMateria(${A}.materie[0]); return 1;`);
   const dopo = await evaluate(`return ${A}.lezioniFiltrate.filter(l=>!l.indisponibilita).length;`);
@@ -217,6 +229,51 @@ try {
   await poll(ev, `${A}.correnteId === '68badd867025e80019524c7b' && ${A}.lezioni.length > 0 && ${A}.lezioni[0].linkCalendarioId === '68badd867025e80019524c7b'`);
   const cor2 = await ev(`return { id: String(${A}.correnteId).slice(0,6), tot: ${A}.lezioni.length };`);
   ok('switch calendario corrente', cor2.id === '68badd' && cor2.tot > 0, JSON.stringify(cor2));
+
+  // ---- sync automatica ALL'APERTURA se è partita una notifica ----
+  // 1) /lastchange recente → sync silenzioso senza refresh manuale
+  await ev(`window.__sync = 0;
+    window.__origAgg = ${A}.aggiornaLezioni.bind(${A});
+    window.__origFetch = window.fetch.bind(window);
+    ${A}.aggiornaLezioni = (o) => { window.__sync++; return window.__origAgg(o); };
+    window.fetch = (u, o) => String(u).includes('/lastchange')
+      ? Promise.resolve(new Response(JSON.stringify({ at: Date.now() + 3600e3, cals: ['X'] }), { status: 200 }))
+      : window.__origFetch(u, o);
+    return 1;`);
+  await ev(`await ${A}.verificaCambioDaPush(); return 1;`);
+  const sync1 = await ev(`return window.__sync;`);
+  ok('sync all\'apertura: /lastchange recente → aggiorna', sync1 === 1, `chiamate=${sync1}`);
+  // 2) /lastchange vecchio (≤ cache) → NESSUN refresh
+  const sync2 = await ev(`window.__sync = 0;
+    window.__origFetch = window.__origFetch || window.fetch.bind(window);
+    window.fetch = (u, o) => String(u).includes('/lastchange')
+      ? Promise.resolve(new Response(JSON.stringify({ at: 1, cals: [] }), { status: 200 }))
+      : window.__origFetch(u, o);
+    ${A}.aggiornaLezioni = () => { window.__sync++; };
+    await ${A}.verificaCambioDaPush();
+    const n = window.__sync;
+    window.fetch = window.__origFetch;
+    ${A}.aggiornaLezioni = window.__origAgg;
+    return n;`);
+  ok('sync all\'apertura: cambio non recente → nessun refresh', sync2 === 0, `chiamate=${sync2}`);
+
+  // ---- pull-to-refresh: tiro dal basso oltre soglia → sync ----
+  const ptr = await ev(`${A}.aggiornaLezioni = () => { window.__ptr = (window.__ptr||0)+1; return Promise.resolve(); };
+    ${A}.ptr = { dy: 0, attivo: false }; ${A}._ptrY = null;
+    ${A}.ptrStart({ touches: [{ clientY: 100 }] });          // scroll in cima
+    ${A}.ptrMove({ touches: [{ clientY: 380 }], cancelable: true, preventDefault(){} });  // tiro 280px → 70 visivi
+    const tiro = ${A}.ptr.dy;
+    await ${A}.ptrEnd();                                      // > soglia 45 → sync
+    return { tiro, fatto: window.__ptr || 0, attivo: ${A}.ptr.attivo, y: ${A}._ptrY };`);
+  ok('pull-to-refresh: tiro → sync silenzioso',
+    ptr.tiro === 70 && ptr.fatto === 1 && ptr.y === null, JSON.stringify(ptr));
+  const ptrBreve = await ev(`${A}.ptr = { dy: 0, attivo: false }; ${A}._ptrY = null;
+    ${A}.ptrStart({ touches: [{ clientY: 100 }] });
+    ${A}.ptrMove({ touches: [{ clientY: 140 }], cancelable: true, preventDefault(){} });  // 40px → 20 visivi
+    await ${A}.ptrEnd();
+    return { dy: ${A}.ptr.dy, fatto: window.__ptr || 0, y: ${A}._ptrY };`);
+  ok('pull-to-refresh: tiro corto non sincronizza',
+    ptrBreve.fatto === 1 && ptrBreve.dy === 0 && ptrBreve.y === null, JSON.stringify(ptrBreve));
 
   // ---- gate installazione: Lightpanda non è standalone → deve aprire la guida ----
   const gate = await ev(`await ${A}.toggleNotifiche();

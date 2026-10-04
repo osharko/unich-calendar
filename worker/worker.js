@@ -55,6 +55,12 @@ export default {
         return handleUnsubscribe(request, env, cors);
       case '/vapid':
         return json({ publicKey: env.VAPID_PUBLIC || null }, 200, cors);
+      // Sync-on-notify: quando è partita una notifica "cambiato", qui c'è
+      // l'istante. La PWA all'apertura la confronta con la propria cache.
+      case '/lastchange': {
+        const raw = await env.PUSH.get('lastchange');
+        return json(raw ? JSON.parse(raw) : { at: 0, cals: [] }, 200, cors);
+      }
       case '/tick': {
         if (!env.CRON_SECRET || request.headers.get('x-cron-secret') !== env.CRON_SECRET)
           return json({ errore: 'non autorizzato' }, 403, cors);
@@ -222,6 +228,7 @@ async function runTick(env) {
 
   // 2) per ogni sottoscrizione: cambio calendario + reminder (rispettando le materie)
   const sentGone = [];
+  const cambiInviati = []; // corsi per cui è partita una notifica "cambiato"
   for (const s of subs) {
     try {
       const msgs = [];
@@ -270,12 +277,24 @@ async function runTick(env) {
       for (const p of payload) {
         const r = await sendPush(env, s, JSON.stringify(p));
         if (r === 'gone') { sentGone.push(s.id); break; }
+        if (r === 'ok' && p.type === 'changed') cambiInviati.push(...(p.cals || []));
       }
     } catch (e) {
       report.errori.push(`sub ${s.id?.slice(0, 8)}: ${e.message}`);
     }
   }
   for (const id of sentGone) await env.PUSH.delete('sub:' + id);
+
+  // Ultimo "calendario cambiato" inviato: la PWA lo legge all'apertura e
+  // aggiorna SOLO se è più recente della sua cache (sync automatico su notifica).
+  if (cambiInviati.length) {
+    const prec = JSON.parse((await env.PUSH.get('lastchange')) || '{"at":0,"cals":[]}');
+    await env.PUSH.put('lastchange', JSON.stringify({
+      at: Date.now(),
+      cals: [...new Set([...(prec.cals || []), ...cambiInviati])],
+    }), { expirationTtl: 180 * 86400 });
+    report.cambiNotificati = [...new Set(cambiInviati)];
+  }
 
   // 3) CANALE DI PROVA: confronta notification/test.json su GitHub.
   //    Isolatissimo: se fallisce, i controlli Cineca sopra restano validi.
