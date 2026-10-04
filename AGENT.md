@@ -3,6 +3,17 @@
 Documento di contesto per agenti/developer che lavorano su questo progetto.
 Contiene le scoperte tecniche sulle fonti dati, i vincoli e le decisioni di architettura.
 
+I dettagli operativi sono invece nei README **verticali**, più leggeri e in
+profondità sulla loro sezione:
+
+| documento | contiene |
+|---|---|
+| [`README.md`](README.md) | presentazione per gli studenti (cosa fa, come si usa) |
+| [`js/README.md`](js/README.md) | front-end: moduli, localStorage, colori, chip ore, sync/pull-to-refresh, push |
+| [`worker/README.md`](worker/README.md) | Cloudflare Worker: proxy, cron, diff, canali test/release, deploy |
+| [`scripts/README.md`](scripts/README.md) | test, build CSS, rilasci, utility |
+| **QUESTO FILE** | fonti dati (Cineca/unich.it), CORS, decisioni d'architettura |
+
 ---
 
 ## 1. Obiettivo
@@ -226,30 +237,41 @@ e "3 anno (percorso L-5)"): vengono mostrati come voci separate.
 index.html                 UI (Alpine.js), unica pagina
 sw.js                      service worker (PWA, cache app shell)
 manifest.webmanifest       manifest PWA
+README.md                  presentazione per gli studenti
+AGENT.md                   questo documento (fonti dati, vincoli, decisioni)
 js/
-  config.js                costanti ateneo + proxy + notifiche
+  config.js                costanti ateneo + proxy + notifiche (schemaCache, vapid)
+  version.js               APP_BUILD: data/commit dell'ultima release (auto-generato)
   store.js                 localStorage: scelte, indice, anni per corso, cache lezioni, tema
   api.js                   client API Cineca + normalizzazione impegni
   scraper.js               scraping lazy unich.it via proxy → indice + anni corso
   calendar.js              costruzione griglia "timetable" + utilità date
-  notify.js                notifiche locali (ponte app ↔ service worker)
-  app.js                   stato Alpine, wizard, materie, orchestrazione
+  notify.js                Web Push: subscribe, prefs, self-heal, meta "changed"
+  app.js                   stato Alpine, wizard, materie (chip ore), sync, pull-to-refresh
+  README.md                architettura del front-end
 css/
-  app.css                  sorgente Tailwind + tema Catppuccin
+  app.css                  sorgente Tailwind + tema Catppuccin + palette --mat-N
   styles.css               output compilato (committato, servito da GH Pages)
 js/vendor/alpine.min.js    Alpine 3 locale (offline, niente CDN)
 worker/
-  worker.js                Cloudflare Worker (proxy CORS verso unich.it)
-  README.md                istruzioni di deploy
+  worker.js                Cloudflare Worker: proxy CORS + push cron (diff, reminder)
+  README.md                endpoint, canali test/release, deploy
+notification/
+  test.json                sentinella canale di prova (broadcast manuale)
+  release.json             sentinella release (scritta da bump-version --notes)
 icons/                     icone PWA
 scripts/
   build-css.sh             compila Tailwind (standalone CLI)
   gen-palette.mjs          (ri)genera i 50 colori --mat-N in css/app.css
   gen-vapid.mjs            genera la coppia di chiavi VAPID (Web Push)
+  bump-version.mjs         marcatore release + note per la notifica di versione
   demodulize.mjs           (storia) convertì i moduli ES in script classici
   serve.mjs                server statico zero-dipendenze (solo per test SW/PWA)
   test-lightpanda.mjs      E2E con browser headless via CDP
   test-proxy.mjs           verifica che lo scraping passi SOLO dal Worker
+  test-changelog-unit.mjs  unit: diff calendario + righe changelog
+  test-push-harness.mjs    integrazione: cron, reminder, flap, test/release
+  README.md                test, build, rilasci
 ```
 
 ### Vincolo: NESSUN modulo ES
@@ -304,13 +326,14 @@ come sfondo/striscia, non come lezioni.
   Macchiato, switch + preferenza di sistema. Niente colori hardcoded nei componenti.
 - **Layout**: griglia CSS `.timetable-grid` con colonne `minmax(82px,1fr)` su
   mobile e nessuna minima su desktop; scala ore `sticky` a sinistra.
-  Selettore 1/3/5/7 giorni (default: 3 mobile, 7 desktop).
+  Sempre da **lunedì**, toggle **5 ↔ 7 giorni** (default 5, Lun–Ven),
+  navigazione a settimana intera.
 - **Colori materia**: palette **fissa di 50 colori** (`--mat-0..49`) generata da
   `scripts/gen-palette.mjs` in DUE varianti: set scuro/saturo per il tema chiaro
   (Latte) e set pastello per i temi scuri (Mocha/Macchiato), stesso ordine di
-  hue. L'indice è un **hash FNV-1a** della materia (nome|anno) con linear probing
-  anti-collisione: stabile anche cambiando calendario. Pill, pallini e blocchi
-  usano sempre `var(--mat-N)`.
+  hue. L'indice è un **hash FNV-1a** del **nome insegnamento** con linear
+  probing anti-collisione: stabile anche cambiando calendario. Pill, pallini e
+  blocchi usano sempre `var(--mat-N)`.
 
 ### Notifiche (Web Push reali via Worker)
 
@@ -334,14 +357,21 @@ gate e apre la guida/installazione diretta con `beforeinstallprompt`).
       * **targeting per materia**: la "changed" non arriva a chi ha nascosto
         la materia coinvolta;
       * **reminder** (finestra 8–25 min): dedup per evento in KV (`rem:<id>`,
-        TTL 2 gg), max 1 changed + 2 reminder per abbonato a giro;
+        TTL 2 gg), max 3 changed + 1 reminder per abbonato a giro;
+      * **fuso**: ore dei messaggi sempre su `Europe/Rome` (variabile `TZ`);
       * subscription morte (404/410) auto-rimosse; try/catch separati per
         area: Cineca rotto ≠ test channel rotto ≠ niente reminder.
-    Seam per i test: orologio iniettabile (`env.__NOW`) → harness 11/11.
+    Seam per i test: orologio iniettabile (`env.__NOW`) → harness.
   - **Canale di prova**: `notification/test.json` nel repo — il cron ne confronta
   l'hash (fetch isolato in try/catch, mai bloccante per Cineca): se il `message`
   cambia, broadcast `🔔 Notifica di test` a tutti gli abbonati. Primo giro =
   baseline silenziosa; `message` vuoto = nessun invio.
+  - **Canale release**: `notification/release.json` (scritto da
+    `bump-version.mjs --notes`) → una notifica "Unich-calendar aggiornato"
+    con le note, una volta per release.
+  - **Sync-on-notify**: all'invio di uno `changed` salva `lastchange` in KV e
+    lo espone con `GET /lastchange` → la PWA si aggiorna all'apertura solo se
+    più recente della cache.
 - Crittografia Web Push **RFC 8291 (aes128gcm)** implementata con WebCrypto
     pura nel Worker (nessuna dipendenza); JWT VAPID ES256.
   - Debug: `GET /tick` e `GET /subs` con header `x-cron-secret`.
@@ -356,98 +386,73 @@ gate e apre la guida/installazione diretta con `beforeinstallprompt`).
   in IndexedDB e notifica le finestre aperte (postMessage → refresh live).
 - **Auto-refresh locale RIMOSSO**: niente più `aggiornaLezioni()` cieco
   all'avvio né timer nel SW. L'app si aggiorna **solo** quando: (a) l'utente
-  preme ⟳, o (b) il push 'changed' dice che è ora (`verificaCambioDaPush()`
-  confronta il meta con `aggiornatoIl` della cache). Tutto il resto del
-  tempo: cache localStorage istantanea e offline.
+  preme ⟳ o tira giù (pull-to-refresh), (b) il push 'changed' dice che è ora —
+  sia dal meta IndexedDB del SW sia da `GET /lastchange` del Worker
+  (`verificaCambioDaPush()` confronta con `aggiornatoIl` della cache), oppure
+  (c) si torna online. Tutto il resto del tempo: cache localStorage
+  istantanea e offline.
 
-## Test con browser headless (Lightpanda)
+## Test, build, rilasci
 
-Lightpanda (`docker.io/lightpanda/browser`) **non rende CSS/visuali**, ma esegue
-JS e DOM reali con fetch di rete: ottimo per verifica end-to-end della logica.
-NB: è fragilissimo con DOM pesanti (35 colonne della vista Mese → perde la
-promise CDP; recovery gestita nel test) e non supporta `file://`.
+Test, build del CSS e procedura di rilascio sono documentati in
+[`scripts/README.md`](scripts/README.md) (incluse le istruzioni per
+Lightpanda, il browser headless con cui gira la suite E2E — non rende il CSS,
+per la verifica visiva serve un browser reale).
 
-```bash
-node scripts/serve.mjs 8123 &
-podman run -d --name lp --net=host docker.io/lightpanda/browser:latest
-node scripts/test-lightpanda.mjs   # ~20 asserzioni: wizard→lezioni→materie→vista→push
-```
+Il deploy del Worker (cron, KV, VAPID, secret) è in
+[`worker/README.md`](worker/README.md); qui sotto restano solo le decisioni.
 
-Per la verifica visiva usare un browser reale.
 ---
 
 ## 5. Sviluppo
 
-### Rilascio (deploy)
+Vincoli operativi (i dettagli sono nei README di sezione):
 
-Ogni push su `main` è automaticamente deployato da GitHub Pages. Prima di un
-rilascio rigenerare il marcatore di versione (il footer mostra quello):
-
-```bash
-node scripts/bump-version.mjs                       # (ri)scrive js/version.js
-git add js/version.js && git commit -m "chore(release)" && git push
-```
-
-Il Worker si deploya dal repo: `cd worker && npx wrangler deploy`
-(cron e bindings in `worker/wrangler.toml`; i secret sopravvivono al deploy).
-Test notifiche: modifica `message` in `notification/test.json` → entro 15 min
-(cron) o subito con `curl -H "x-cron-secret: …" …/tick`.
-
-Requisiti: nessun Node/npm obbligatorio. Per ricompilare il CSS serve il
-**Tailwind standalone CLI** (binario singolo):
-
-```bash
-# scarica una volta (esempio v4)
-curl -sL -o /tmp/tailwindcss \
-  https://github.com/tailwindlabs/tailwindcss/releases/download/v4.3.3/tailwindcss-linux-x64
-chmod +x /tmp/tailwindcss
-
-# compila
-./scripts/build-css.sh          # → css/styles.css (minificato)
-```
-
-Per provare in locale:
-
-```bash
-node scripts/serve.mjs 8000      # server statico zero-dipendenze
-# apri http://localhost:8000
-```
-
-> Il service worker richiede HTTPS (o `localhost`), quindi non funziona con `file://`.
+- **Nessuna build obbligatoria**: gli script JS sono classici (no moduli ES)
+  perché il sito funzioni anche da `file://`. Conversione da moduli:
+  `scripts/demodulize.mjs`.
+- **CSS**: Tailwind standalone CLI → `css/styles.css` committato (vedi
+  `scripts/README.md`). Aggiunta una classe non applicata = dimenticata la
+  ricompilazione.
+- **Service worker**: richiede HTTPS (o `localhost`), non funziona con `file://`.
+- **Rilascio**: `node scripts/bump-version.mjs --notes "…"` (marcatore footer +
+  notifica di versione agli utenti), poi push e `/tick` forzato.
+- Server locale di prova: `node scripts/serve.mjs 8000`.
 
 ---
 
-## 7. Interfaccia
+## 6. Interfaccia
 
-- **Wizard di configurazione** a step, una schermata alla volta con breadcrumb:
+- **Wizard di configurazione** a step, una schermata alla volta:
   Polo → Dipartimento/Scuola → Corso → Anno. Ogni passo mostra solo le voci
-  della scelta precedente.
-- **Materie**: dopo aver aggiunto un calendario, il pulsante *Materie* apre
-  l'elenco degli insegnamenti con checkbox. Deselezionando una materia le sue
-  lezioni spariscono dal calendario. Le materie sono raggruppate per nome + anno
-  (i dettagli didattici con percorsi/partizioni diversi confluiscono in una voce).
-- **Calendario** responsive: selettore 1 / 3 / 5 / 7 giorni. Su mobile il default
-  è 3 giorni (così le colonne restano leggibili senza scroll), su desktop 7.
-  La scala delle ore è fissa (`sticky`) durante lo scroll orizzontale.
-  L'intervallo orario si adatta automaticamente alle lezioni del periodo.
+  della scelta precedente; l'elenco corsi si auto-scarica al primo avvio.
+- **Materie**: pill sotto la griglia (click = mostra/nascondi, servono anche da
+  legenda per colore). Raggruppate **per solo nome insegnamento**; ogni chip
+  mostra le ore `{erogate}/{pianificate}h` e si evidenzia quando una lezione è
+  in corso. Le materie nascoste filtrano anche le notifiche.
+- **Calendario** responsive: **sempre da lunedì**, pulsante **5 ↔ 7 giorni**
+  (default 5, Lun–Ven), navigazione sempre a settimana intera (‹ ›), vista
+  Mese opzionale. Scala ore sticky, intervallo orario auto-adesivo.
+- **Pull-to-refresh** + sync automatico all'apertura quando è arrivata una
+  notifica di cambio (vedi `js/README.md`).
 
 ---
 
-## 6. Roadmap
+## 7. Roadmap
 
 - [x] Analisi API Cineca + vincolo CORS
 - [x] Cloudflare Worker proxy (`worker/worker.js`), deployato su unich-proxy.unich.workers.dev
 - [x] Scraper indice + anni corso, lazy
-- [x] Client API + normalizzazione + cache
+- [x] Client API + normalizzazione + cache (schema versionato)
 - [x] Wizard a step (Polo → Dipartimento → Corso → Anno)
-- [x] Selezione materie da visualizzare
+- [x] Selezione materie da visualizzare (pill sotto il calendario)
 - [x] Palette fissa 50 colori materia (scripts/gen-palette.mjs) con varianti light/dark
-- [x] Test E2E con Lightpanda (scripts/test-lightpanda.mjs, 13 asserzioni)
+- [x] Test E2E con Lightpanda (scripts/test-lightpanda.mjs, ~28 asserzioni)
 - [x] Repo GitHub + deploy Pages (branch main /) o Cloudflare Pages
-- [x] Notifiche locali (timer SW, 15 min prima, toggle in topbar)
-- [x] Web Push reali via Cloudflare Cron + VAPID (recapito ad app chiusa)
-      — codice pronto e verificato con harness; richiede il ri-deploy del
-      worker aggiornato (notification/test.json per il collaudo end-to-end)
+- [x] Web Push reali via Cloudflare Cron + VAPID (promemoria + changelog per corso)
+- [x] Notifica di versione a ogni rilascio (`notification/release.json`)
+- [x] Chip ore erogate/pianificate + evidenza "lezione in corso"
+- [x] Sync-on-notify all'apertura (`GET /lastchange`) + pull-to-refresh
 - [ ] Filtri aggiuntivi (docente, aula) e ricerca nel calendario
 - [ ] Test su corsi/anni diversi (requisito 3)
-- [ ] Install prompt PWA e rifiniture accessibilità (ARIA, tastiera)
+- [ ] Rifiniture accessibilità (ARIA, tastiera)

@@ -9,7 +9,23 @@ Un unico Worker gratis fa due cose:
    sole lezioni *future* → notifica solo per aggiunte/annullamenti/spostamenti
    d'orario o aula. Anti-flap (>60% sparite = guasto Cineca: tace e congela lo
    snapshot), targeting per materie nascoste, reminder 8–25 min con dedup.
-   Invia anche il canale di test `notification/test.json` (in isolamento).
+   Invia anche il canale di test `notification/test.json` e il canale release
+   `notification/release.json` (entrambi in isolamento).
+
+**Fuso orario**: le ore nei messaggi (reminder e changelog) usano `Europe/Rome`
+di default, sovrascrivibile con la variabile d'ambiente `TZ` del Worker
+(è un'app italiana: di base è sempre veritiera).
+
+## Endpoint
+
+| route | accesso | scopo |
+|---|---|---|
+| `/?url=…` | pubblico | proxy CORS (allowlist `*.unich.it`) |
+| `POST /subscribe`, `POST /unsubscribe` | pubblico | iscrizione/rimozione push + prefs (calendari e materie visibili) |
+| `GET /vapid` | pubblico | chiave pubblica VAPID |
+| `GET /lastchange` | pubblico | `{at, cals}` dell'ultimo "calendario cambiato" inviato → la PWA all'apertura fa il sync automatico solo se più recente della cache |
+| `GET /tick` | `x-cron-secret` | forza un giro di cron (stessa logica del cron `*/15`) |
+| `GET /subs` | `x-cron-secret` | debug: sottoscrizioni registrate |
 
 ## Prerequisiti (una tantum)
 
@@ -78,3 +94,25 @@ precedente, fa un **broadcast di test** a tutti gli abbonati col nuovo testo.
   `🔔 Notifica di test: <message>` a chi ha il push attivo.
 - `message` vuoto = nessun invio (ma baseline aggiornata).
 - URL file sovrascrivibile con la variabile `TEST_URL` (se cambi repo/branch).
+
+## Canale release (notifica di versione)
+
+`notification/release.json` (`{ version, releasedAt, released, notes }`) viene
+scritto da `node scripts/bump-version.mjs --notes "…;…"`. Il cron lo legge in
+isolamento come il canale di prova:
+
+- `released` (contatore crescente) diverso dal precedente + `notes` non vuote →
+  broadcast `Unich-calendar aggiornato` con le note (max 10 righe, poi "… e altre N");
+- note vuote → nessun invio (solo baseline aggiornata);
+- primo tick → baseline silenziosa;
+- URL sovrascrivibile con `RELEASE_URL`.
+
+Flusso di rilascio: `bump-version.mjs --notes "…"` → `git push` →
+`curl -H "x-cron-secret: …" …/tick` (altrimenti arriva entro 15 min dal cron).
+
+## Sync-on-notify
+
+Quando viene inviato davvero un push `changed`, il Worker salva in KV
+(`lastchange`, TTL 180 gg) l'istante e i corsi coinvolti. La PWA, all'apertura,
+legge `GET /lastchange` (più il meta IndexedDB scritto dal SW) e fa il sync
+**solo** se è più recente della propria cache: niente refresh "alla cieca".

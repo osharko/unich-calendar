@@ -1,136 +1,81 @@
-# unich-calendar
+# Calendario lezioni Ud'A
 
-Calendario delle lezioni dell'Università degli Studi "G. d'Annunzio" (Chieti–Pescara),
-come **PWA statica** pubblicabile su GitHub Pages. Nessun server, tutto nel browser.
+Se vi interessa: è nato questo sito che funziona da calendario per l'Ud'A —
+mostra le lezioni settimana per settimana, **manda una notifica prima di ogni
+lezione** e permette di customizzare le lezioni da seguire, filtrando i corsi
+che non vi interessano, così da avere notifiche personalizzate e una visione
+del calendario più comoda per le vostre esigenze.
 
 ## Cosa fa
 
-- Costruisce la gerarchia **Polo → Dipartimento/Scuola → Corso → Anno/percorso** leggendo
-  il sito dell'ateneo, in modo **lazy**: una richiesta per l'elenco, una per il corso scelto.
-- Scarica le lezioni dall'API pubblica Cineca e le mostra in una griglia
-  **ore × giorni**, responsive e adatta al mobile.
-- Permette di **scegliere quali materie visualizzare**: utile quando il calendario
-  include molti corsi a scelta che non ti interessano.
-- Salva tutto in `localStorage`: al riavvio ritrovi le scelte e puoi consultare
-  offline, senza reinserire nulla.
+- **Lezioni ore × giorni**: la settimana parte sempre da **lunedì**, con vista
+  da 5 o 7 giorni (pulsante 🗓) e navigazione sempre a settimane intere (‹ ›).
+- **Notifiche prima di ogni lezione**: un promemoria ~15 minuti prima, e un
+  avviso appena cambia qualcosa nel calendario (lezione annullata, spostata,
+  aula diversa, nuova lezione).
+- **Materie a scelta**: i pill sotto il calendario nascondono/mostrano gli
+  insegnamenti — spariscono dalla griglia **e dalle notifiche**, così ricevete
+  solo ciò che vi serve.
+- **Ore erogate**: ogni materia indica quante ore sono già passate su quante
+  sono pubblicate (`18/60h`); mentre una lezione è in corso, la chip la mette
+  in evidenza.
+- **Resta tutto sul dispositivo**: le scelte (corsi, materie, tema) sono
+  salvate localmente e si consulta bene anche offline.
 
-## Uso
+## Come si usano
 
-1. Apri il sito: **l'elenco dei corsi si scarica da solo** al primo avvio
-   (una sola richiesta; poi resta salvato sul dispositivo). Il pulsante
-   **⟳ Aggiorna elenco** serve solo per ri-sincronizzarlo in futuro.
-2. Segui il wizard: Polo → Dipartimento/Scuola → Corso → Anno.
-3. **Materie**: clicca i pill sotto la griglia per mostrare/nascondere gli
-   insegnamenti (il colore del pallino è quello dei blocchi in calendario).
-4. Il **titolo in alto** è il calendario corrente: cliccalo per cambiare anno,
-   rimuoverlo o aggiungere un altro corso.
-   ⚠️ Su **iOS** non esiste il pulsante "Installa ora" (Apple non implementa
-   `beforeinstallprompt`): la guida mostra i passi manuali *Condividi →
-   Aggiungi a schermata Home*; l'icona corretta è già servita via
-   `apple-touch-icon` (180px, opaca).
-5. Il calendario parte **sempre da lunedì**: il pulsante **🗓** alterna 5 giorni
-   (Lun–Ven) ↔ 7 giorni (Lun–Dom); **‹ ›** scorrono sempre di una settimana.
-   **☀/☾** cambia tema; **⟳** aggiorna le lezioni.
-6. **🔔 Notifiche push** (promemoria "lezione tra ~15 min" + "calendario
-   aggiornato", recapitate **anche ad app chiusa**): richiede la PWA installata —
-   se non lo è, la campanella guida all'installazione (pulsante diretto dove il
-   browser lo offre). Dietro c'è il cron del Worker: segui `worker/README.md`
-   per attivare KV + VAPID + cron (dopo il primo deploy del Worker aggiornato).
+1. Aprite il sito: **l'elenco dei corsi si scarica da solo** al primo avvio.
+2. Seguite il wizard: **Polo → Dipartimento/Scuola → Corso → Anno**.
+3. Il **titolo in alto** è il calendario attivo: cliccandolo potete cambiarlo,
+   toglierne uno o aggiungerne un altro.
+4. Sotto il calendario scegliete le **materie** (il pallino colorato è lo
+   stesso dei blocchi in griglia).
+5. **⟳** aggiorna le lezioni, **‹ ›** cambiano settimana, **☀/☾** cambia tema.
 
-## Servire in locale (senza python, senza server!)
+## Notifiche
 
-I JS sono **script classici** (non moduli ES): basta un **doppio click su
-`index.html`** (`file://`). Nessuna build, nessun server, nessun runtime.
-Unica eccezione: il **service worker** (cache offline/PWA) funziona solo su
-http/https — per testarlo:
+Si attivano con la **campanella in alto**. Per riceverle anche con l'app
+chiusa serve installarla sul dispositivo e concedere il permesso: la campanella
+vi guida passo passo (su iPhone è *Condividi → Aggiungi a schermata Home*, su
+Android/desktop di solito basta "Installa").
 
-```bash
-node scripts/serve.mjs 8080     # server statico zero-dipendenze
-# oppure nginx, caddy, php -S, `npx serve`, …
-```
+Cosa arriva:
 
-Test E2E headless (JS/DOM/rete reali; il CSS non viene renderizzato):
+- **Promemoria**: «Tra ~15 min: Storia della filosofia II · Aula B2»
+- **Cambi calendario**: la lista di cosa è cambiato, per ogni corso
+  («✕ Annullata: …», «↔ spostata: lun 10:00 → mar 12:00», «📍 aula …»)
+- **Nuove versioni dell'app**: una notifica quando esce un aggiornamento.
 
-```bash
-node scripts/serve.mjs 8123 &
-podman run -d --name lp --net=host docker.io/lightpanda/browser:latest
-node scripts/test-lightpanda.mjs
-```
+Tutto controllato **ogni 15 minuti**, anche quando il sito è chiuso.
 
-## Cloudflare Worker: proxy CORS + push
+## Segnalazioni
 
-Lo stesso Worker gratuito fa due cose (`worker/worker.js`):
+Problemi, idee o correzioni ai calendari:
+[luigi.minopoli@studenti.unich.it](mailto:luigi.minopoli@studenti.unich.it)
 
-1. **Proxy CORS** per `www.unich.it` (allowlist: solo domini d'ateneo) — senza
-   di esso il browser non può scaricare indice dei corsi e anni.
-2. **Push scheduler** con **Cron ogni 15 min**: un solo fetch Cineca per
-   calendario sottoscritto (dedup tra studenti), confronto hash e invio di
-   Web Push "calendario aggiornato" + promemoria "lezione tra ~15 min"
-   (rispetta le materie nascoste di ciascuno). Recapita **anche ad app chiusa**.
+Nel piè di pagina trovate la **versione rilasciata** (data + commit): utile per
+capire se la vostra installazione è aggiornata.
 
-**Attivo**: `https://unich-proxy.unich.workers.dev` (in `js/config.js`).
-Il Worker deployato è però la versione vecchia (solo proxy): per abilitare il
-push followa `worker/README.md` (incollare il nuovo codice + KV namespace +
-chiavi VAPID + cron trigger, ~5 minuti, sempre gratis). Se `workerBase` è
-vuoto lo scraping è disabilitato (nessun fallback esterno).
+---
 
-## Deploy: GitHub Pages o Cloudflare Pages (indifferenti)
+<details>
+<summary><strong>Per chi sviluppa (info tecniche)</strong></summary>
 
-Entrambi vanno bene, sono **statici puri** (nessuna build):
+- [`js/README.md`](js/README.md) — architettura del front-end (Alpine.js,
+  vincolo "no moduli ES", localStorage, colori, sync e notifiche)
+- [`worker/README.md`](worker/README.md) — Cloudflare Worker: proxy CORS,
+  cron di push, diff calendario, VAPID, deploy
+- [`scripts/README.md`](scripts/README.md) — test, build CSS, rilasci
+- [`AGENT.md`](AGENT.md) — analisi fonti dati, CORS, decisioni d'architettura
 
-- **GitHub Pages**: Settings → Pages → branch `main` / (root). Zero config.
-- **Cloudflare Pages** (consigliato se usi già il Worker): collega il repo,
-  *Build command* vuoto, *Output* `/`. In più: dominio tuo, HTTPS, preview per
-  branch e deploy automatici. Stesso account del proxy → tutto in un posto.
+Servire in locale: `node scripts/serve.mjs 8080` (l'app funziona anche con un
+semplice doppio click su `index.html`, tranne il service worker che richiede
+http/https).
 
-Non serve affatto Pages: anche un Worker statico di Cloudflare o un S3 bucket
-funzionerebbero. L'unica cosa che conta è che il **service worker** richieda HTTPS
-(entrambi lo danno) e che `sw.js` resti alla root.
-
-## Test automatici (Lightpanda)
-
-Verifica end-to-end con browser headless (esegue JS/DOM/rete, non il CSS):
-
-```bash
-python3 -m http.server 8123 &
-podman run -d --name lp --net=host docker.io/lightpanda/browser:latest
-node scripts/test-lightpanda.mjs
-```
-
-## Stack
-
-- **Alpine.js** (locale, nessuna CDN) per la reattività.
-- **Tailwind CSS v4** (compilato, `css/styles.css` committato).
-- **Tema Catppuccin** (Latte / Mocha / Macchiato) via variabili CSS.
-- **Service worker** per l'app shell e la consultazione offline.
-
-## Sviluppo
-
-Vedi [`AGENT.md`](AGENT.md) per l'analisi completa delle fonti dati, il vincolo CORS
-e le decisioni di architettura.
-
-```bash
-python3 -m http.server 8000   # http://localhost:8000
-```
-
-Per ricompilare il CSS serve il Tailwind standalone CLI (nessun Node richiesto):
-
-```bash
-curl -sL -o /tmp/tailwindcss \
-  https://github.com/tailwindlabs/tailwindcss/releases/download/v4.3.3/tailwindcss-linux-x64
-chmod +x /tmp/tailwindcss
-./scripts/build-css.sh
-```
-
-## Deploy su GitHub Pages
-
-Pubblica il contenuto della root del repo (branch `main`, cartella `/`).
-Tutti i percorsi sono relativi, quindi funziona anche in una sottocartella.
+</details>
 
 ## Avvertenze
 
 - Progetto **non ufficiale**, non affiliato all'ateneo.
-- I dati provengono da fonti pubbliche (`unich.it` e API Cineca). Potrebbero cambiare
-  formato senza preavviso; lo scraper è isolato in `js/scraper.js` per facilitare gli aggiornamenti.
-- Lo scraping passa da un Worker Cloudflare gratuito (allowlist unich.it).
-  Se non disponibile, si può sostituire con un Cloudflare Worker (vedi `AGENT.md`).
+- I dati provengono da fonti pubbliche (`unich.it` e API Cineca): possono
+  cambiare formato senza preavviso.
