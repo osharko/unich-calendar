@@ -1,7 +1,12 @@
 {
-  "_commento": "Sentinella delle release dell'app. rigenerato da scripts/bump-version.mjs a ogni rilascio: `released` è un contatore crescente, `notes` sono le righe mostrate nella notifica 'Unich-calendar aggiornato'. Se `notes` è vuoto non viene inviata alcuna notifica.",
-  "version": "0",
-  "releasedAt": "",
-  "released": 0,
-  "notes": []
+  "version": "81796bb",
+  "releasedAt": "4 ottobre 2026 alle ore 23:55",
+  "released": 1791150961820,
+  "notes": [
+    "Chip con ore erogate e totali per ogni materia (in evidenza quando la lezione è in corso)",
+    "Sincronizzazione automatica all'apertura quando arriva una notifica di aggiornamento",
+    "Pull to refresh: trascina giù per aggiornare",
+    "Promemoria con l'ora giusta (fuso orario italiano)",
+    "Notifiche di versione a ogni nuovo rilascio"
+  ]
 }
