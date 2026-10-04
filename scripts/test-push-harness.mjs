@@ -102,4 +102,30 @@ r = await tick();
 ok('8 test channel broadcast 2/2', r.test === 'cambiato → inviato a 2/2' && pushes.pushA === 3 && pushes.pushB === 1, r.test);
 
 console.log(`\npush — A:${pushes.pushA} (cancellaz., reminder, test) | B:${pushes.pushB} (solo test)`);
-process.exit(pushes.pushA === 3 && pushes.pushB === 1 ? 0 : 1);
+
+// ---------- checkRelease: baseline → invariato → note → inviato ----------
+{
+  const rel = { released: 1, releasedAt: '1 ottobre 2026 10:00', notes: ['Fix fuso orario', 'Chip ore per materia'] };
+  globalThis.fetch = async (u) => {
+    const s = String(u);
+    if (s.includes('release.json')) return new Response(JSON.stringify(rel), { status: 200 });
+    if (s.includes('getImpegniCalendarioPubblico')) return new Response(JSON.stringify(apiBody), { status: 200 });
+    if (s.endsWith('/pushA')) { pushes.pushA++; return new Response('', { status: 201 }); }
+    if (s.endsWith('/pushB')) { pushes.pushB++; return new Response('', { status: 201 }); }
+    if (s.includes('raw.githubusercontent')) return new Response(JSON.stringify(githubMsg), { status: 200 });
+    return real(s);
+  };
+  const base = pushes.pushA;
+  let r = await tick();                       // 1° giro: baseline
+  ok('release baseline silenziosa', r.release === 'baseline' && pushes.pushA === base);
+  rel.released = 2; rel.notes = ['Fix fuso orario notifiche', 'Chip ore per materia'];
+  r = await tick();                           // cambio con note → invio
+  ok('release cambiata → inviata a 2/2', r.release.startsWith('nuova versione') && r.release.includes('2/2') && pushes.pushA === base + 1, r.release);
+  rel.released = 3; rel.notes = [];           // cambio senza note → silenzio
+  r = await tick();
+  ok('release senza note → non invia', r.release === 'nuova versione senza note: non invio' && pushes.pushA === base + 1, r.release);
+}
+
+// A: 3 (cancellaz.+reminder, test) + 2 release — B: 1 (test) + 1 release
+// A: 3 (cancellaz.+reminder, test) + 1 release — B: 1 (test) + 1 release
+process.exit(pushes.pushA === 4 && pushes.pushB === 2 ? 0 : 1);

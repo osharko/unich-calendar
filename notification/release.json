@@ -1,0 +1,7 @@
+{
+  "_commento": "Sentinella delle release dell'app. rigenerato da scripts/bump-version.mjs a ogni rilascio: `released` è un contatore crescente, `notes` sono le righe mostrate nella notifica 'Unich-calendar aggiornato'. Se `notes` è vuoto non viene inviata alcuna notifica.",
+  "version": "0",
+  "releasedAt": "",
+  "released": 0,
+  "notes": []
+}

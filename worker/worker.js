@@ -29,7 +29,11 @@ const DOMINI_CONSENTITI = ['www.unich.it', 'unich.it'];
 const ORIZZONTE_GG = 8;      // finestra di eventi considerata
 const FINA_REMINDER_MIN = 25; // reminder: evento che inizia tra 10 e 25 min
 const INIZIO_REMINDER_MIN = 8;
-const BUILD = 'v3-changelog'; // marcatore visibile su GET / (verifica deploy)
+const BUILD = 'v5-notify-release'; // marcatore visibile su GET / (verifica deploy)
+// Fuso orario della community: default Europe/Rome (ateneo italiano).
+// Sovrascrivibile dalla variabile d'ambiente TZ del Worker.
+const TZ_DEFAULT = 'Europe/Rome';
+const TZ = (env) => (env && env.TZ) || TZ_DEFAULT;
 
 /* ============================ main fetch ============================== */
 
@@ -169,7 +173,7 @@ async function runTick(env) {
   if (!env.PUSH) return { errore: 'KV non configurato' };
   const subs = await loadSubs(env);
   const now = Date.now();
-  const report = { subs: subs.length, calendari: 0, cambiati: [], reminder: [], test: null, errori: [] };
+  const report = { subs: subs.length, calendari: 0, cambiati: [], reminder: [], test: null, release: null, errori: [] };
 
   const eventiPerCal = new Map();
 
@@ -229,7 +233,7 @@ async function runTick(env) {
         // Changelog: una notifica PER CORSO con le righe di cosa è cambiato
         // (solo materie visibili dall'utente; cap 10 righe con "e altre N").
         if (st.diff && st.diff.tutto.length) {
-          const righe = changelogRighe(st.diff, c.materie);
+          const righe = changelogRighe(st.diff, c.materie, TZ(env));
           if (righe.length) {
             const intestazione = [c.corso, c.label].filter(Boolean).join(' · ') || c.id;
             msgs.push({
@@ -247,7 +251,7 @@ async function runTick(env) {
           if (c.materie && !ev.mk.some((k) => c.materie.includes(k))) continue; // materia nascosta
           if (await env.PUSH.get('rem:' + ev.id)) continue;
           await env.PUSH.put('rem:' + ev.id, '1', { expirationTtl: 2 * 86400 });
-          const ora = new Date(ev.in).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+          const ora = new Date(ev.in).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: TZ(env) });
           msgs.push({
             title: 'Unich-calendar',
             body: `Tra ~${Math.round(mins)} min: ${ev.nome}${ev.au ? ' · ' + ev.au : ''} (ore ${ora})`,
@@ -280,6 +284,15 @@ async function runTick(env) {
   } catch (e) {
     report.errori.push(`check test: ${e.message}`);
     report.test = 'errore';
+  }
+
+  // 4) RELEASE: se notification/release.json è cambiato, avvisa tutti della
+  //    nuova versione con le note di rilascio (stesso isolamento).
+  try {
+    await checkRelease(env, subs, report);
+  } catch (e) {
+    report.errori.push(`check release: ${e.message}`);
+    report.release = 'errore';
   }
 
   return report;
@@ -328,6 +341,48 @@ async function checkTestMessage(env, subs, report) {
   }
   report.test = `cambiato → inviato a ${inviati}/${subs.length}`;
 }
+
+/* ------------------------- notifica di rilascio -------------------------
+ * notification/release.json (scritto da scripts/bump-version.mjs a ogni
+ * release col contatore `released` sempre crescente): se cambia, avvisa tutti
+ * della nuova versione con le note. Note vuote = nessun invio. Primo giro =
+ * baseline silenziosa. Isolato: errori qui non toccano Cineca/test channel. */
+async function checkRelease(env, subs, report) {
+  const base = env.RELEASE_URL ||
+    'https://raw.githubusercontent.com/osharko/unich-calendar/main/notification/release.json';
+  const url = base + (base.includes('?') ? '&' : '?') + 'cb=' + Date.now();
+  const res = await fetch(url, { headers: { 'User-Agent': 'unich-proxy-release' }, cf: { cacheTtl: 0, cacheEverything: false } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const text = await res.text();
+  let rel = {};
+  try { rel = JSON.parse(text); } catch { rel = {}; }
+
+  const marca = String(rel.released ?? '');
+  const prev = await env.PUSH.get('hasrelease');
+  await env.PUSH.put('hasrelease', marca, { expirationTtl: 365 * 86400 });
+  if (!prev) { report.release = 'baseline'; return; }
+
+  const notes = Array.isArray(rel.notes) ? rel.notes.map((n) => String(n).trim()).filter(Boolean) : [];
+  if (prev === marca) { report.release = 'invariato'; return; }
+  if (!notes.length) { report.release = 'nuova versione senza note: non invio'; return; }
+
+  const righe = notes.slice(0, 10);
+  const testo = righe.map((n) => `• ${n}`).join('\n') + (notes.length > 10 ? `\n… e altre ${notes.length - 10}` : '');
+  let inviati = 0;
+  for (const s of subs) {
+    try {
+      const r = await sendPush(env, s, JSON.stringify({
+        type: 'release', title: 'Unich-calendar aggiornato', body: testo, tag: 'rel-' + marca,
+      }));
+      if (r === 'gone') await env.PUSH.delete('sub:' + s.id); else inviati++;
+    } catch (e) {
+      report.errori.push(`release sub ${s.id?.slice(0, 6)}: ${e.message}`);
+    }
+  }
+  report.release = `nuova versione (${round10(rel.releasedAt)}) → inviato a ${inviati}/${subs.length}`;
+}
+
+const round10 = (s) => (s ? String(s).replace(/ alle ore /, ' ') : '');
 
 /* ==================== fetch eventi Cineca (dedup) ==================== */
 
@@ -398,12 +453,12 @@ export function diffEventi(prevFut, curFut) {
 
 /* ------------------- changelog leggibile per le push --------------------- */
 
-function fmtQuando(iso) {
+function fmtQuando(iso, tz = TZ_DEFAULT) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '?';
   return d.toLocaleString('it-IT', {
     weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-    timeZone: 'Europe/Rome',
+    timeZone: tz,
   });
 }
 
@@ -411,21 +466,21 @@ function fmtQuando(iso) {
  * Righe di cambiamento (una per evento), filtrate dalle materie nascoste.
  * Annullata/spostata(↔ orario)/aula(📍)/recuperata(↩)/aggiunta(＋).
  */
-export function changelogRighe(diff, materie) {
+export function changelogRighe(diff, materie, tz = TZ_DEFAULT) {
   const vede = (e) => !materie || (e.mk || []).some((k) => materie.includes(k));
   const r = [];
-  for (const e of diff.annullate) if (vede(e)) r.push(`✕ Annullata: ${e.nome} · ${fmtQuando(e.in)}`);
+  for (const e of diff.annullate) if (vede(e)) r.push(`✕ Annullata: ${e.nome} · ${fmtQuando(e.in, tz)}`);
   for (const m of diff.modificate) {
     if (!vede(m.ev)) continue;
     const oraCambia = m.prima.in !== m.ev.in || m.prima.fi !== m.ev.fi;
     const aulaCambia = (m.prima.au || '') !== (m.ev.au || '');
-    if (m.prima.st === 'A' && m.ev.st !== 'A') r.push(`↩ Recuperata: ${m.ev.nome} · ${fmtQuando(m.ev.in)}`);
-    else if (oraCambia && aulaCambia) r.push(`↔ ${m.ev.nome}: ${fmtQuando(m.prima.in)} → ${fmtQuando(m.ev.in)}, aula ${m.ev.au || '—'}`);
-    else if (oraCambia) r.push(`↔ ${m.ev.nome}: ${fmtQuando(m.prima.in)} → ${fmtQuando(m.ev.in)}`);
-    else if (aulaCambia) r.push(`📍 ${m.ev.nome} ${fmtQuando(m.ev.in)}: aula ${m.prima.au || '—'} → ${m.ev.au || '—'}`);
-    else r.push(`• ${m.ev.nome} ${fmtQuando(m.ev.in)}: dettagli aggiornati`);
+    if (m.prima.st === 'A' && m.ev.st !== 'A') r.push(`↩ Recuperata: ${m.ev.nome} · ${fmtQuando(m.ev.in, tz)}`);
+    else if (oraCambia && aulaCambia) r.push(`↔ ${m.ev.nome}: ${fmtQuando(m.prima.in, tz)} → ${fmtQuando(m.ev.in, tz)}, aula ${m.ev.au || '—'}`);
+    else if (oraCambia) r.push(`↔ ${m.ev.nome}: ${fmtQuando(m.prima.in, tz)} → ${fmtQuando(m.ev.in, tz)}`);
+    else if (aulaCambia) r.push(`📍 ${m.ev.nome} ${fmtQuando(m.ev.in, tz)}: aula ${m.prima.au || '—'} → ${m.ev.au || '—'}`);
+    else r.push(`• ${m.ev.nome} ${fmtQuando(m.ev.in, tz)}: dettagli aggiornati`);
   }
-  for (const e of diff.aggiunte) if (vede(e)) r.push(`＋ Nuova: ${e.nome} · ${fmtQuando(e.in)}${e.au ? ' · ' + e.au : ''}`);
+  for (const e of diff.aggiunte) if (vede(e)) r.push(`＋ Nuova: ${e.nome} · ${fmtQuando(e.in, tz)}${e.au ? ' · ' + e.au : ''}`);
   return r;
 }
 
